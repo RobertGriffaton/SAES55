@@ -3,6 +3,7 @@ import { UserPreferences } from '../models/PreferencesModel';
 
 // Clé de stockage uniquement pour les NOUVEAUX restaurants ajoutés par l'utilisateur
 const DB_KEY_CUSTOM = 'food_reco_db_custom_v1';
+const DB_USERS_KEY = 'food_reco_users_v1';
 
 // 1. Chargement des données STATIQUES en mémoire (RAM)
 // On ne les met PAS dans le LocalStorage pour éviter le "QuotaExceededError"
@@ -79,5 +80,46 @@ export const addRestaurant = async (newResto: any) => {
     console.log("[Web DB] Restaurant ajouté et sauvegardé !");
   } catch (e) {
     console.error("Erreur sauvegarde web:", e);
+  }
+};
+export const createUser = async (username: string, avatar: string = "default") => {
+  try {
+    const json = await AsyncStorage.getItem(DB_USERS_KEY);
+    const users = json ? JSON.parse(json) : [];
+
+    const newUser = {
+      id: Date.now(), // Faux ID unique basé sur le temps
+      username,
+      avatar,
+      created_at: Date.now()
+    };
+
+    users.push(newUser);
+    await AsyncStorage.setItem(DB_USERS_KEY, JSON.stringify(users));
+    
+    console.log("[Web DB] Utilisateur créé :", newUser);
+    return newUser.id;
+  } catch (e) {
+    console.error("Erreur création user web:", e);
+    return null;
+  }
+};
+
+export const getUser = async (id: number) => {
+  try {
+    const json = await AsyncStorage.getItem(DB_USERS_KEY);
+    const users = json ? JSON.parse(json) : [];
+    return users.find((u: any) => u.id === id) || null;
+  } catch (e) {
+    return null;
+  }
+};
+
+export const getAllUsers = async () => {
+  try {
+    const json = await AsyncStorage.getItem(DB_USERS_KEY);
+    return json ? JSON.parse(json) : [];
+  } catch (e) {
+    return [];
   }
 };

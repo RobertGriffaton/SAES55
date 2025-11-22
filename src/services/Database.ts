@@ -16,3 +16,14 @@ export const searchRestaurants = async (prefs: UserPreferences): Promise<any[]> 
 export const getDB = () => {
   return null;
 };
+export const createUser = async (username: string, avatar?: string): Promise<number | null> => {
+  return Promise.resolve(null);
+};
+
+export const getUser = async (id: number): Promise<any> => {
+  return Promise.resolve(null);
+};
+
+export const getAllUsers = async (): Promise<any[]> => {
+  return Promise.resolve([]);
+};

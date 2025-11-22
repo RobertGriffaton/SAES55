@@ -10,6 +10,7 @@ const db = SQLite.openDatabaseSync('food_reco.db');
 
 export const initDatabase = async () => {
   try {
+    // 1. On crée la table RESTAURANTS (code existant...)
     await db.execAsync(`
       CREATE TABLE IF NOT EXISTS restaurants (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -24,11 +25,17 @@ export const initDatabase = async () => {
       );
     `);
 
-    const result = await db.getFirstAsync<{ count: number }>('SELECT count(*) as count FROM restaurants');
-    if (result && result.count === 0) {
-      console.log("[Mobile] Base vide, chargement des données...");
-      await insertDataFromJSON();
-    }
+    // 2. --- NOUVEAU : On crée la table USERS ---
+    await db.execAsync(`
+      CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT,
+        avatar TEXT,
+        created_at INTEGER
+      );
+    `);
+
+    // ... le reste de votre code de chargement JSON (count restaurants, etc.)
   } catch (error) {
     console.error("Erreur init BDD Mobile:", error);
   }
@@ -68,4 +75,35 @@ export const searchRestaurants = async (prefs: UserPreferences) => {
   // Ici on renvoie tout ce qui match les critères, on filtrera la distance en JS si besoin
   const results = await db.getAllAsync(query, params);
   return results;
+};
+export const createUser = async (username: string, avatar: string = "default") => {
+  try {
+    const result = await db.runAsync(
+      'INSERT INTO users (username, avatar, created_at) VALUES (?, ?, ?)',
+      [username, avatar, Date.now()]
+    );
+    console.log("[Mobile] Utilisateur créé avec l'ID:", result.lastInsertRowId);
+    return result.lastInsertRowId;
+  } catch (e) {
+    console.error("Erreur création user:", e);
+    return null;
+  }
+};
+
+export const getUser = async (id: number) => {
+  try {
+    const user = await db.getFirstAsync('SELECT * FROM users WHERE id = ?', [id]);
+    return user;
+  } catch (e) {
+    console.error("Erreur récupération user:", e);
+    return null;
+  }
+};
+
+export const getAllUsers = async () => {
+  try {
+    return await db.getAllAsync('SELECT * FROM users');
+  } catch (e) {
+    return [];
+  }
 };
