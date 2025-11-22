@@ -1,4 +1,4 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DEFAULT_PREFERENCES, UserPreferences } from "../models/PreferencesModel";
 
 
@@ -22,12 +22,20 @@ await AsyncStorage.setItem(KEY_PREFS, JSON.stringify(prefs));
 }
 
 
-export async function isOnboardingDone(): Promise<boolean> {
-const flag = await AsyncStorage.getItem(KEY_ONBOARDING);
-return flag === "1";
-}
+export const hasCompletedOnboarding = async (): Promise<boolean> => {
+  try {
+    const value = await AsyncStorage.getItem('onboarding_done');
+    return value === 'true';
+  } catch (e) {
+    return false;
+  }
+};
 
 
-export async function setOnboardingDone(done: boolean): Promise<void> {
-await AsyncStorage.setItem(KEY_ONBOARDING, done ? "1" : "0");
-}
+export const setOnboardingDone = async () => {
+  try {
+    await AsyncStorage.setItem('onboarding_done', 'true');
+  } catch (e) {
+    console.error(e);
+  }
+};
