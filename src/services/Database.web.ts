@@ -123,3 +123,14 @@ export const getAllUsers = async () => {
     return [];
   }
 };
+
+export const getAllRestaurants = async () => {
+  try {
+    const json = await AsyncStorage.getItem(DB_KEY_CUSTOM);
+    const customData = json ? JSON.parse(json) : [];
+    return [...staticData, ...customData];
+  } catch (e) {
+    console.error("Erreur recuperation restaurants web:", e);
+    return [...staticData];
+  }
+};

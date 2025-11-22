@@ -2,7 +2,7 @@
 import * as SQLite from 'expo-sqlite';
 import { UserPreferences } from '../models/PreferencesModel';
 
-// Import du JSON via require pour compatibilité
+// Import du JSON via require pour compatibilite
 const rawData = require('../data/restaurants.json');
 const restaurantsList: any[] = Array.isArray(rawData) ? rawData : (rawData.restaurants || []);
 
@@ -10,7 +10,6 @@ const db = SQLite.openDatabaseSync('food_reco.db');
 
 export const initDatabase = async () => {
   try {
-    // 1. On crée la table RESTAURANTS (code existant...)
     await db.execAsync(`
       CREATE TABLE IF NOT EXISTS restaurants (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -25,7 +24,6 @@ export const initDatabase = async () => {
       );
     `);
 
-    // 2. --- NOUVEAU : On crée la table USERS ---
     await db.execAsync(`
       CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -35,7 +33,7 @@ export const initDatabase = async () => {
       );
     `);
 
-    // ... le reste de votre code de chargement JSON (count restaurants, etc.)
+    await ensureRestaurantsSeeded();
   } catch (error) {
     console.error("Erreur init BDD Mobile:", error);
   }
@@ -52,7 +50,19 @@ const insertDataFromJSON = async () => {
   }
 };
 
-// Fonction de recherche SQL optimisée pour le mobile
+const ensureRestaurantsSeeded = async () => {
+  try {
+    const row: any = await db.getFirstAsync('SELECT COUNT(*) as count FROM restaurants');
+    const count = row?.count ?? 0;
+    if (count > 0) return;
+    await insertDataFromJSON();
+    console.log(`[Mobile DB] ${restaurantsList.length} restaurants importes depuis le JSON.`);
+  } catch (e) {
+    console.error("Erreur lors de l'initialisation des restaurants:", e);
+  }
+};
+
+// Fonction de recherche SQL optimise pour le mobile
 export const searchRestaurants = async (prefs: UserPreferences) => {
   let query = "SELECT * FROM restaurants WHERE 1=1";
   const params: any[] = [];
@@ -65,27 +75,37 @@ export const searchRestaurants = async (prefs: UserPreferences) => {
   }
 
   // Filtre Diet
-  if (prefs.diet === 'Végétarien') query += " AND vegetarian = 1";
-  if (prefs.diet === 'Végan') query += " AND vegan = 1";
+  if (prefs.diet === 'VǸgǸtarien') query += " AND vegetarian = 1";
+  if (prefs.diet === 'VǸgan') query += " AND vegan = 1";
   
   // Filtre Options
   if (prefs.options.emporter) query += " AND takeaway = 1";
 
-  // Note : Le calcul de distance précis se fait souvent après récupération pour simplifier SQL
-  // Ici on renvoie tout ce qui match les critères, on filtrera la distance en JS si besoin
+  // Note : Le calcul de distance precis se fait souvent apres recuperation pour simplifier SQL
+  // Ici on renvoie tout ce qui match les criteres, on filtrera la distance en JS si besoin
   const results = await db.getAllAsync(query, params);
   return results;
 };
+
+export const getAllRestaurants = async () => {
+  try {
+    return await db.getAllAsync('SELECT * FROM restaurants ORDER BY name ASC');
+  } catch (e) {
+    console.error("Erreur recuperation restaurants:", e);
+    return [];
+  }
+};
+
 export const createUser = async (username: string, avatar: string = "default") => {
   try {
     const result = await db.runAsync(
       'INSERT INTO users (username, avatar, created_at) VALUES (?, ?, ?)',
       [username, avatar, Date.now()]
     );
-    console.log("[Mobile] Utilisateur créé avec l'ID:", result.lastInsertRowId);
+    console.log("[Mobile] Utilisateur cree avec l'ID:", result.lastInsertRowId);
     return result.lastInsertRowId;
   } catch (e) {
-    console.error("Erreur création user:", e);
+    console.error("Erreur creation user:", e);
     return null;
   }
 };
@@ -95,7 +115,7 @@ export const getUser = async (id: number) => {
     const user = await db.getFirstAsync('SELECT * FROM users WHERE id = ?', [id]);
     return user;
   } catch (e) {
-    console.error("Erreur récupération user:", e);
+    console.error("Erreur recuperation user:", e);
     return null;
   }
 };
