@@ -1,38 +1,23 @@
-export type Cuisine =
-| "Afrique"
-| "Asie"
-| "Europe"
-| "Maghreb"
-| "Amérique"
-| "Inde"
-| "Italien"
-| "Japonais"
-| "Chinois"
-| "Libanais"
-| "Turc";
+export type RestaurantType =
+  | "restaurant"
+  | "fast_food"
+  | "cafe"
+  | "bar"
+  | "pub"
+  | "ice_cream"
+  | "food_court"
+  | "biergarten";
 
-
-export type Diet = "Végétarien" | "Végan" | "Halal" | "Sans gluten" | "Aucune";
-
-
-export type Ambiance = "Calme" | "Familial" | "Branché" | "Traditionnel" | "Romantique";
-
+export type DietPreference = "none" | "vegetarian" | "vegan";
 
 export interface UserPreferences {
-cuisines: Cuisine[];
-budgetEuro: number; // budget moyen par personne
-distanceKm: number; // rayon de recherche max
-diet: Diet;
-ambiance: Ambiance | null;
-options: { surPlace: boolean; emporter: boolean; livraison: boolean };
+  preferredTypes: RestaurantType[];
+  diet: DietPreference;
+  takeawayPreferred: boolean;
 }
 
-
 export const DEFAULT_PREFERENCES: UserPreferences = {
-cuisines: [],
-budgetEuro: 15,
-distanceKm: 5,
-diet: "Aucune",
-ambiance: null,
-options: { surPlace: true, emporter: false, livraison: false },
+  preferredTypes: [],
+  diet: "none",
+  takeawayPreferred: false,
 };

@@ -1,12 +1,12 @@
-import React, { useMemo, useState } from "react";
+import { Ionicons } from "@expo/vector-icons";
+import React, { useState } from "react";
 import {
   Alert,
-  Image,
+  Pressable,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
-  TextInput,
-  TouchableOpacity,
   View,
 } from "react-native";
 import {
@@ -14,578 +14,286 @@ import {
   setOnboardingDone,
 } from "../controllers/PreferencesController";
 import {
-  Ambiance,
-  Cuisine,
   DEFAULT_PREFERENCES,
-  Diet,
+  DietPreference,
+  RestaurantType,
   UserPreferences,
 } from "../models/PreferencesModel";
-import { colors, spacing } from "../styles/theme";
+import { colors, fontSize, spacing } from "../styles/theme";
 
-const CUISINES: Cuisine[] = [
-  "Afrique",
-  "Asie",
-  "Europe",
-  "Maghreb",
-  "Amérique",
-  "Inde",
-  "Italien",
-  "Japonais",
-  "Chinois",
-  "Libanais",
-  "Turc",
-];
-
-const DIETS: Diet[] = ["Aucune", "Végétarien", "Végan", "Halal", "Sans gluten"];
-const AMBIANCES: Ambiance[] = [
-  "Calme",
-  "Familial",
-  "Branché",
-  "Traditionnel",
-  "Romantique",
-];
-
-function Chip({
-  label,
-  selected,
-  onPress,
-}: {
-  label: string;
-  selected?: boolean;
-  onPress?: () => void;
-}) {
-  return (
-    <TouchableOpacity
-      onPress={onPress}
-      style={[styles.chip, selected && styles.chipSelected]}
-    >
-      <Text style={[styles.chipText, selected && styles.chipTextSelected]}>
-        {label}
-      </Text>
-    </TouchableOpacity>
-  );
+interface Props {
+  onDone: () => void;
 }
 
-export function OnboardingPreferencesView({ onDone }: { onDone: () => void }) {
-  const [step, setStep] = useState(1);
+const TYPE_OPTIONS: { value: RestaurantType; label: string }[] = [
+  { value: "restaurant", label: "Restaurant" },
+  { value: "fast_food", label: "Fast food" },
+  { value: "cafe", label: "Cafe" },
+  { value: "bar", label: "Bar" },
+  { value: "pub", label: "Pub" },
+  { value: "ice_cream", label: "Glacier" },
+  { value: "food_court", label: "Food court" },
+  { value: "biergarten", label: "Biergarten" },
+];
 
-  const [cuisines, setCuisines] = useState<Cuisine[]>([]);
-  const [budget, setBudget] = useState(String(DEFAULT_PREFERENCES.budgetEuro));
-  const [distance, setDistance] = useState(
-    String(DEFAULT_PREFERENCES.distanceKm)
+const DIET_OPTIONS: { value: DietPreference; label: string }[] = [
+  { value: "none", label: "Aucune preference" },
+  { value: "vegetarian", label: "Vegetarien" },
+  { value: "vegan", label: "Vegan" },
+];
+
+export const OnboardingPreferencesView: React.FC<Props> = ({ onDone }) => {
+  const [preferredTypes, setPreferredTypes] = useState<RestaurantType[]>(
+    DEFAULT_PREFERENCES.preferredTypes
   );
-  const [diet, setDiet] = useState<Diet>("Aucune");
-  const [ambiance, setAmbiance] = useState<Ambiance | null>(null);
-  const [options, setOptions] = useState(DEFAULT_PREFERENCES.options);
+  const [diet, setDiet] = useState<DietPreference>(DEFAULT_PREFERENCES.diet);
+  const [takeawayPreferred, setTakeawayPreferred] = useState(
+    DEFAULT_PREFERENCES.takeawayPreferred
+  );
+  const [saving, setSaving] = useState(false);
 
-  // Validations budget / distance + flags d'erreur
-  const {
-    isValid: isBudgetDistanceValid,
-    budgetError,
-    distanceError,
-  } = useMemo(() => {
-    const b = Number(budget);
-    const d = Number(distance);
-
-    const budgetError = Number.isNaN(b) || b <= 0 || b >= 200;
-    const distanceError = Number.isNaN(d) || d <= 0 || d > 50;
-
-    return {
-      isValid: !budgetError && !distanceError,
-      budgetError,
-      distanceError,
-    };
-  }, [budget, distance]);
-
-  const hasAtLeastOneCuisine = cuisines.length > 0;
-  const canContinue = hasAtLeastOneCuisine && isBudgetDistanceValid;
-
-  const toggleCuisine = (c: Cuisine) =>
-    setCuisines((prev) =>
-      prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]
+  const toggleType = (type: RestaurantType) => {
+    setPreferredTypes((prev) =>
+      prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type]
     );
-
-  const toggleOption = (k: "surPlace" | "emporter" | "livraison") =>
-    setOptions((prev) => ({ ...prev, [k]: !prev[k] }));
-
-  const onSkip = async () => {
-    await setOnboardingDone(true);
-    onDone();
   };
 
   const onContinue = async () => {
+    if (preferredTypes.length === 0) {
+      Alert.alert("Choisis au moins un type de lieu.");
+      return;
+    }
+
     const prefs: UserPreferences = {
-      cuisines,
-      budgetEuro: Number(budget),
-      distanceKm: Number(distance),
+      preferredTypes,
       diet,
-      ambiance,
-      options,
+      takeawayPreferred,
     };
+
     try {
+      setSaving(true);
       await savePreferences(prefs);
-      await setOnboardingDone(true);
+      await setOnboardingDone();
       onDone();
     } catch (e) {
-      Alert.alert("Erreur", "Impossible d'enregistrer vos préférences.");
+      Alert.alert("Erreur", "Impossible d'enregistrer tes preferences.");
+    } finally {
+      setSaving(false);
     }
   };
-
-  // Progression
-  const totalSteps = 4;
-  const filledFlex = step;
-  const emptyFlex = totalSteps - step;
 
   return (
     <View style={styles.container}>
       <ScrollView
-        contentContainerStyle={styles.scroll}
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Bande violette + logo */}
-        <View style={styles.topBanner}>
-          <Image
-            source={require("../../assets/LogoGrayeLong.png")}
-            style={styles.logo}
-            resizeMode="contain"
+        <View style={styles.header}>
+          <Ionicons
+            name="restaurant-outline"
+            size={32}
+            color={colors.primary}
           />
-        </View>
-
-        {/* Titre + sous-titre */}
-        <Text style={styles.title}>Dis-nous comment tu aimes manger 🍽️</Text>
-        <Text style={styles.subtitle}>
-          Choisis tes préférences pour que Graye te recommande les meilleures
-          adresses.
-        </Text>
-
-        {/* Indicateur d'étape + barre de progression */}
-        <View style={styles.stepHeader}>
-          <Text style={styles.stepText}>
-            Étape {step}/{totalSteps}
-          </Text>
-          <View style={styles.progressTrack}>
-            <View style={[styles.progressFill, { flex: filledFlex }]} />
-            <View style={{ flex: emptyFlex }} />
+          <View style={styles.headerTextBlock}>
+            <Text style={styles.title}>On garde l'essentiel</Text>
+            <Text style={styles.subtitle}>
+              Types de lieux, regime (vege/vegan) et a emporter pour adapter les
+              suggestions.
+            </Text>
           </View>
         </View>
 
-        {/* Étape 1 : cuisines */}
-        {step === 1 && (
-          <>
-            <Text style={styles.sectionTitle}>Cuisines préférées</Text>
-            <Text style={styles.stepDescription}>
-              Sélectionne au moins une cuisine que tu apprécies.
-            </Text>
-            <View style={styles.wrap}>
-              {CUISINES.map((c) => (
-                <Chip
-                  key={c}
-                  label={c}
-                  selected={cuisines.includes(c)}
-                  onPress={() => toggleCuisine(c)}
-                />
-              ))}
-            </View>
-          </>
-        )}
-
-        {/* Étape 2 : budget + distance */}
-        {step === 2 && (
-          <>
-            <Text style={styles.sectionTitle}>Budget (€/pers.)</Text>
-            <Text style={styles.stepDescription}>
-              Indique ton budget moyen par personne.
-            </Text>
-            <TextInput
-              keyboardType="numeric"
-              value={budget}
-              onChangeText={setBudget}
-              placeholder="ex: 15"
-              style={[styles.input, budgetError && styles.inputError]}
-            />
-            <Text
-              style={[styles.helperText, budgetError && styles.helperTextError]}
-            >
-              Budget entre 1 et 199 € par personne.
-            </Text>
-
-            <Text style={styles.sectionTitle}>Distance max (km)</Text>
-            <Text style={styles.stepDescription}>
-              Jusqu’à quelle distance es-tu prêt à te déplacer ?
-            </Text>
-            <TextInput
-              keyboardType="numeric"
-              value={distance}
-              onChangeText={setDistance}
-              placeholder="ex: 5"
-              style={[styles.input, distanceError && styles.inputError]}
-            />
-            <Text
-              style={[
-                styles.helperText,
-                distanceError && styles.helperTextError,
-              ]}
-            >
-              Distance entre 1 et 50 km.
-            </Text>
-          </>
-        )}
-
-        {/* Étape 3 : régime */}
-        {step === 3 && (
-          <>
-            <Text style={styles.sectionTitle}>Régime/contraintes</Text>
-            <Text style={styles.stepDescription}>
-              Précise tes habitudes ou contraintes alimentaires.
-            </Text>
-            <View style={styles.wrap}>
-              {DIETS.map((d) => (
-                <Chip
-                  key={d}
-                  label={d}
-                  selected={diet === d}
-                  onPress={() => setDiet(d)}
-                />
-              ))}
-            </View>
-          </>
-        )}
-
-        {/* Étape 4 : ambiance + options + récap */}
-        {step === 4 && (
-          <>
-            <Text style={styles.sectionTitle}>Ambiance</Text>
-            <Text style={styles.stepDescription}>
-              Choisis le type d’ambiance que tu préfères.
-            </Text>
-            <View style={styles.wrap}>
-              {AMBIANCES.map((a) => (
-                <Chip
-                  key={a}
-                  label={a}
-                  selected={ambiance === a}
-                  onPress={() => setAmbiance(a)}
-                />
-              ))}
-              <Chip
-                label="Peu importe"
-                selected={!ambiance}
-                onPress={() => setAmbiance(null)}
-              />
-            </View>
-
-            <Text style={styles.sectionTitle}>Options</Text>
-            <Text style={styles.stepDescription}>
-              Comment veux-tu profiter de ton repas ?
-            </Text>
-            <View style={styles.wrap}>
-              <Chip
-                label="Sur place"
-                selected={options.surPlace}
-                onPress={() => toggleOption("surPlace")}
-              />
-              <Chip
-                label="À emporter"
-                selected={options.emporter}
-                onPress={() => toggleOption("emporter")}
-              />
-              <Chip
-                label="Livraison"
-                selected={options.livraison}
-                onPress={() => toggleOption("livraison")}
-              />
-            </View>
-
-            {/* Récapitulatif */}
-            <View style={styles.summaryCard}>
-              <Text style={styles.summaryTitle}>Récapitulatif</Text>
-
-              <Text style={styles.summaryItem}>
-                <Text style={styles.summaryLabel}>Cuisines : </Text>
-                {cuisines.length > 0 ? cuisines.join(", ") : "Non précisé"}
-              </Text>
-
-              <Text style={styles.summaryItem}>
-                <Text style={styles.summaryLabel}>Budget : </Text>
-                {budget ? `${budget} € / pers.` : "Non précisé"}
-              </Text>
-
-              <Text style={styles.summaryItem}>
-                <Text style={styles.summaryLabel}>Distance max : </Text>
-                {distance ? `${distance} km` : "Non précisé"}
-              </Text>
-
-              <Text style={styles.summaryItem}>
-                <Text style={styles.summaryLabel}>Régime : </Text>
-                {diet}
-              </Text>
-
-              <Text style={styles.summaryItem}>
-                <Text style={styles.summaryLabel}>Ambiance : </Text>
-                {ambiance ?? "Peu importe"}
-              </Text>
-
-              <Text style={styles.summaryItem}>
-                <Text style={styles.summaryLabel}>Options : </Text>
-                {[
-                  options.surPlace && "Sur place",
-                  options.emporter && "À emporter",
-                  options.livraison && "Livraison",
-                ]
-                  .filter(Boolean)
-                  .join(", ") || "Non précisé"}
-              </Text>
-            </View>
-          </>
-        )}
-
-        {/* CTA */}
-        <View style={styles.ctaRow}>
-          {/* Étape 1 */}
-          {step === 1 && (
-            <>
-              <TouchableOpacity
-                onPress={onSkip}
-                style={[styles.button, styles.buttonGhost]}
+        <Text style={styles.sectionTitle}>Types de lieux</Text>
+        <Text style={styles.sectionSubtitle}>
+          Tu peux en choisir plusieurs.
+        </Text>
+        <View style={styles.chipContainer}>
+          {TYPE_OPTIONS.map((t) => {
+            const active = preferredTypes.includes(t.value);
+            return (
+              <Pressable
+                key={t.value}
+                style={[styles.chip, active && styles.chipActive]}
+                onPress={() => toggleType(t.value)}
               >
-                <Text style={[styles.buttonText, styles.buttonTextGhost]}>
-                  Plus tard
+                <Text
+                  style={[styles.chipText, active && styles.chipTextActive]}
+                >
+                  {t.label}
                 </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                disabled={!hasAtLeastOneCuisine}
-                onPress={() => setStep(2)}
-                style={[
-                  styles.button,
-                  styles.buttonSecondary,
-                  !hasAtLeastOneCuisine && styles.buttonDisabled,
-                ]}
-              >
-                <Text style={styles.buttonText}>Suivant</Text>
-              </TouchableOpacity>
-            </>
-          )}
-
-          {/* Étapes 2 et 3 */}
-          {step > 1 && step < 4 && (
-            <>
-              <TouchableOpacity
-                onPress={() => setStep(step - 1)}
-                style={[styles.button, styles.buttonGhost]}
-              >
-                <Text style={[styles.buttonText, styles.buttonTextGhost]}>
-                  Retour
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                disabled={step === 2 && !isBudgetDistanceValid}
-                onPress={() => setStep(step + 1)}
-                style={[
-                  styles.button,
-                  styles.buttonSecondary,
-                  step === 2 && !isBudgetDistanceValid && styles.buttonDisabled,
-                ]}
-              >
-                <Text style={styles.buttonText}>Suivant</Text>
-              </TouchableOpacity>
-            </>
-          )}
-
-          {/* Étape 4 */}
-          {step === 4 && (
-            <>
-              <TouchableOpacity
-                onPress={() => setStep(3)}
-                style={[styles.button, styles.buttonGhost]}
-              >
-                <Text style={[styles.buttonText, styles.buttonTextGhost]}>
-                  Retour
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                disabled={!canContinue}
-                onPress={onContinue}
-                style={[styles.button, !canContinue && styles.buttonDisabled]}
-              >
-                <Text style={styles.buttonText}>Terminer</Text>
-              </TouchableOpacity>
-            </>
-          )}
+              </Pressable>
+            );
+          })}
         </View>
 
-        <Text style={styles.footnote}>
-          Nous n'effectuons aucune inscription. Vos préférences sont stockées
-          uniquement sur cet appareil.
+        <Text style={styles.sectionTitle}>Restrictions alimentaires</Text>
+        <Text style={styles.sectionSubtitle}>
+          Nous filtrons seulement quand l'info existe dans le jeu de donnees.
         </Text>
+        <View style={styles.chipContainer}>
+          {DIET_OPTIONS.map((option) => (
+            <Pressable
+              key={option.value}
+              style={[styles.chip, diet === option.value && styles.chipActive]}
+              onPress={() => setDiet(option.value)}
+            >
+              <Text
+                style={[
+                  styles.chipText,
+                  diet === option.value && styles.chipTextActive,
+                ]}
+              >
+                {option.label}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+
+        <View style={styles.block}>
+          <Text style={styles.sectionTitle}>Vente à emporter</Text>
+          <Text style={styles.sectionSubtitle}>
+            Choisis si tu veux privilegier les lieux qui proposent l'emporter.
+          </Text>
+          <View style={styles.chipContainer}>
+            <Pressable
+              style={[styles.chip, !takeawayPreferred && styles.chipActive]}
+              onPress={() => setTakeawayPreferred(false)}
+            >
+              <Text
+                style={[
+                  styles.chipText,
+                  !takeawayPreferred && styles.chipTextActive,
+                ]}
+              >
+                Peu importe
+              </Text>
+            </Pressable>
+            <Pressable
+              style={[styles.chip, takeawayPreferred && styles.chipActive]}
+              onPress={() => setTakeawayPreferred(true)}
+            >
+              <Text
+                style={[
+                  styles.chipText,
+                  takeawayPreferred && styles.chipTextActive,
+                ]}
+              >
+                Favoriser à emporter
+              </Text>
+            </Pressable>
+          </View>
+        </View>
       </ScrollView>
+
+      <Pressable
+        style={[
+          styles.mainButton,
+          (preferredTypes.length === 0 || saving) && styles.mainButtonDisabled,
+        ]}
+        onPress={onContinue}
+        disabled={saving || preferredTypes.length === 0}
+      >
+        <Text style={styles.mainButtonText}>
+          {saving ? "Enregistrement..." : "Continuer"}
+        </Text>
+      </Pressable>
     </View>
   );
-}
+};
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  scroll: { padding: spacing.large },
-
-  topBanner: {
-    backgroundColor: colors.primary,
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
+    paddingTop: spacing.xlarge,
+  },
+  scroll: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingHorizontal: spacing.large,
+    paddingBottom: spacing.large,
+  },
+  header: {
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: spacing.medium,
-    marginHorizontal: -spacing.large,
-    marginTop: -spacing.large,
-    marginBottom: spacing.medium,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
-  },
-
-  logo: {
-    width: 210,
-    height: 70,
-  },
-
-  title: {
-    fontSize: 28,
-    fontWeight: "700",
-    color: colors.text,
-    marginBottom: spacing.small,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: colors.inactive,
+    paddingHorizontal: spacing.large,
     marginBottom: spacing.large,
   },
-
-  // Indicateur d'étapes
-  stepHeader: {
+  headerTextBlock: {
+    marginLeft: spacing.medium,
+    flex: 1,
+  },
+  title: {
+    fontSize: fontSize.heading,
+    fontWeight: "800",
+    color: colors.text,
+  },
+  subtitle: {
+    marginTop: spacing.xsmall,
+    fontSize: fontSize.body,
+    color: colors.textMuted,
+  },
+  sectionTitle: {
+    fontSize: fontSize.title,
+    fontWeight: "700",
+    color: colors.text,
+    marginBottom: spacing.xsmall,
+  },
+  sectionSubtitle: {
+    fontSize: fontSize.small,
+    color: colors.textMuted,
     marginBottom: spacing.medium,
   },
-  stepText: {
-    color: colors.primary,
-    marginBottom: spacing.small,
-    fontWeight: "700",
-  },
-  progressTrack: {
-    height: 8,
-    backgroundColor: colors.border,
-    borderRadius: 999,
-    overflow: "hidden",
+  chipContainer: {
     flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.small,
+    marginBottom: spacing.large,
   },
-  progressFill: {
-    height: "100%",
-    backgroundColor: colors.primary,
-  },
-
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: colors.text,
-    marginTop: spacing.medium,
-    marginBottom: spacing.small,
-  },
-  stepDescription: {
-    fontSize: 14,
-    color: colors.inactive,
-    marginBottom: spacing.small,
-  },
-
-  wrap: { flexDirection: "row", flexWrap: "wrap", gap: spacing.small },
-
   chip: {
     borderWidth: 1,
     borderColor: colors.border,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
+    paddingHorizontal: spacing.medium,
+    paddingVertical: spacing.small,
     borderRadius: 999,
-    marginRight: spacing.small,
-    marginBottom: spacing.small,
+    backgroundColor: colors.card,
   },
-  chipSelected: {
-    backgroundColor: (colors as any).primary + "22",
+  chipActive: {
+    backgroundColor: colors.primarySoft,
     borderColor: colors.primary,
-    paddingVertical: 9,
-    paddingHorizontal: 14,
-    shadowColor: "#000",
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
   },
-  chipText: { color: colors.text },
-  chipTextSelected: { color: colors.primary, fontWeight: "600" },
-
-  input: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 12,
-    padding: 12,
-    fontSize: 16,
-  },
-  inputError: {
-    borderColor: "#EF4444",
-  },
-  helperText: {
-    fontSize: 12,
-    color: colors.inactive,
-    marginTop: 4,
-  },
-  helperTextError: {
-    color: "#EF4444",
-  },
-
-  ctaRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: spacing.large,
-  },
-
-  button: {
-    backgroundColor: colors.primary,
-    paddingVertical: 14,
-    paddingHorizontal: 18,
-    borderRadius: 14,
-    minWidth: 140,
-    alignItems: "center",
-  },
-  buttonSecondary: {
-    backgroundColor:
-      // @ts-ignore - secondary peut ne pas être défini dans le thème historique
-      (colors as any).secondary ?? "#4C956C",
-  },
-  buttonDisabled: { opacity: 0.5 },
-  buttonGhost: {
-    backgroundColor: "transparent",
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  buttonText: { color: "#fff", fontWeight: "700" },
-  buttonTextGhost: { color: colors.text, fontWeight: "600" },
-
-  summaryCard: {
-    marginTop: spacing.large,
-    padding: spacing.medium,
-    borderRadius: 16,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  summaryTitle: {
-    fontSize: 16,
-    fontWeight: "700",
+  chipText: {
     color: colors.text,
-    marginBottom: spacing.small,
+    fontSize: fontSize.small,
   },
-  summaryItem: {
-    fontSize: 14,
-    color: colors.text,
-    marginTop: 2,
-  },
-  summaryLabel: {
+  chipTextActive: {
+    color: colors.primary,
     fontWeight: "600",
   },
-
-  footnote: { color: colors.inactive, fontSize: 12, marginTop: spacing.medium },
+  block: {
+    marginTop: spacing.medium,
+  },
+  switchRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.medium,
+  },
+  mainButton: {
+    backgroundColor: colors.primary,
+    paddingVertical: spacing.medium,
+    borderRadius: 999,
+    alignItems: "center",
+    marginHorizontal: spacing.large,
+    marginBottom: spacing.large,
+  },
+  mainButtonDisabled: {
+    opacity: 0.5,
+  },
+  mainButtonText: {
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: fontSize.body,
+  },
 });

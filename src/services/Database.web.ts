@@ -1,31 +1,61 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { UserPreferences } from '../models/PreferencesModel';
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { UserPreferences } from "../models/PreferencesModel";
 
-// Clés de stockage pour les données personnalisées
-const DB_KEY_CUSTOM = 'food_reco_db_custom_v1';
-const DB_USERS_KEY = 'food_reco_users_v1';
+// Cles de stockage pour les donnees personnalisees
+const DB_KEY_CUSTOM = "food_reco_db_custom_v1";
+const DB_USERS_KEY = "food_reco_users_v1";
 
-// Chargement du JSON statique en mémoire
-const rawData = require('../data/restaurants.json');
+// Chargement du JSON statique en memoire
+const rawData = require("../data/restaurants.json");
 
-const staticData = (Array.isArray(rawData) ? rawData : (rawData.restaurants || [])).map((r: any) => ({
-  ...r,
-  id: r.id || Math.random().toString(36).substr(2, 9),
-  cuisines: Array.isArray(r.cuisine) ? r.cuisine.join(',') : (r.cuisine || ""),
-  lat: typeof r.lat === 'number' ? r.lat : (r.meta_geo_point?.lat ?? null),
-  lon: typeof r.lon === 'number' ? r.lon : (r.meta_geo_point?.lon ?? null),
-  vegetarian: r.diet?.vegetarian ? 1 : (r.vegetarian === 'yes' ? 1 : 0),
-  vegan: r.diet?.vegan ? 1 : (r.vegan === 'yes' ? 1 : 0),
-  takeaway: r.options?.takeaway ? 1 : (r.takeaway === 'yes' ? 1 : 0),
-}));
+const toBoolFlag = (value: any) => {
+  if (typeof value !== "string") return 0;
+  const normalized = value.toLowerCase();
+  if (
+    normalized === "yes" ||
+    normalized === "only" ||
+    normalized === "limited"
+  ) {
+    return 1;
+  }
+  return 0;
+};
+
+const takeawayFlag = (value: any) => {
+  if (typeof value !== "string") return 0;
+  const normalized = value.toLowerCase();
+  if (
+    normalized === "yes" ||
+    normalized === "only" ||
+    normalized === "sandwitches"
+  ) {
+    return 1;
+  }
+  return 0;
+};
+
+const staticData = (Array.isArray(rawData) ? rawData : rawData.restaurants || []).map(
+  (r: any) => ({
+    ...r,
+    id: r.id || Math.random().toString(36).substr(2, 9),
+    cuisines: Array.isArray(r.cuisine) ? r.cuisine.join(",") : r.cuisine || "",
+    lat: typeof r.lat === "number" ? r.lat : r.meta_geo_point?.lat ?? null,
+    lon: typeof r.lon === "number" ? r.lon : r.meta_geo_point?.lon ?? null,
+    vegetarian: toBoolFlag(r.vegetarian),
+    vegan: toBoolFlag(r.vegan),
+    takeaway: takeawayFlag(r.takeaway),
+  })
+);
 
 // --- API PUBLIQUE ---
 
 export const initDatabase = async () => {
-  console.log(`[Web DB] ${staticData.length} restaurants chargés en mémoire (Lecture seule).`);
+  console.log(
+    `[Web DB] ${staticData.length} restaurants charges en memoire (Lecture seule).`
+  );
   try {
     const custom = await AsyncStorage.getItem(DB_KEY_CUSTOM);
-    if (custom) console.log("[Web DB] Données utilisateur personnalisées trouvées.");
+    if (custom) console.log("[Web DB] Donnees utilisateur personalisees trouvees.");
   } catch (e) {
     console.warn("Erreur lecture stockage local:", e);
   }
@@ -42,17 +72,17 @@ export const searchRestaurants = async (prefs: UserPreferences) => {
 
   const allRestaurants = [...staticData, ...customData];
 
-  console.log(`[Recherche Web] Filtrage parmi ${allRestaurants.length} restaurants...`);
+  console.log(
+    `[Recherche Web] Filtrage parmi ${allRestaurants.length} restaurants...`
+  );
 
   const results = allRestaurants.filter((r: any) => {
-    if (prefs.cuisines.length > 0) {
-      const restoCuisines = (r.cuisines || "").toLowerCase();
-      const match = prefs.cuisines.some(pref => restoCuisines.includes(pref.toLowerCase()));
-      if (!match) return false;
+    if (prefs.preferredTypes.length > 0) {
+      if (!prefs.preferredTypes.includes(r.type)) return false;
     }
-    if (prefs.diet === 'Végétarien' && r.vegetarian !== 1) return false;
-    if (prefs.diet === 'Végan' && r.vegan !== 1) return false;
-    if (prefs.options.emporter && r.takeaway !== 1) return false;
+    if (prefs.diet === "vegetarian" && r.vegetarian !== 1) return false;
+    if (prefs.diet === "vegan" && r.vegan !== 1) return false;
+    if (prefs.takeawayPreferred && r.takeaway !== 1) return false;
     return true;
   });
 
@@ -65,13 +95,16 @@ export const addRestaurant = async (newResto: any) => {
     const currentCustom = json ? JSON.parse(json) : [];
     currentCustom.push(newResto);
     await AsyncStorage.setItem(DB_KEY_CUSTOM, JSON.stringify(currentCustom));
-    console.log("[Web DB] Restaurant ajouté et sauvegardé !");
+    console.log("[Web DB] Restaurant ajoute et sauvegarde !");
   } catch (e) {
     console.error("Erreur sauvegarde web:", e);
   }
 };
 
-export const createUser = async (username: string, avatar: string = "default") => {
+export const createUser = async (
+  username: string,
+  avatar: string = "default"
+) => {
   try {
     const json = await AsyncStorage.getItem(DB_USERS_KEY);
     const users = json ? JSON.parse(json) : [];
@@ -80,16 +113,16 @@ export const createUser = async (username: string, avatar: string = "default") =
       id: Date.now(),
       username,
       avatar,
-      created_at: Date.now()
+      created_at: Date.now(),
     };
 
     users.push(newUser);
     await AsyncStorage.setItem(DB_USERS_KEY, JSON.stringify(users));
-    
-    console.log("[Web DB] Utilisateur créé :", newUser);
+
+    console.log("[Web DB] Utilisateur cree :", newUser);
     return newUser.id;
   } catch (e) {
-    console.error("Erreur création user web:", e);
+    console.error("Erreur creation user web:", e);
     return null;
   }
 };
@@ -136,11 +169,15 @@ const haversineKm = (lat1: number, lon1: number, lat2: number, lon2: number) => 
   return R * c;
 };
 
-export const getRestaurantsNearby = async (lat: number, lon: number, radiusKm: number = 5) => {
+export const getRestaurantsNearby = async (
+  lat: number,
+  lon: number,
+  radiusKm: number = 5
+) => {
   try {
     const all = await getAllRestaurants();
     const withDistance = all
-      .filter((r: any) => typeof r.lat === 'number' && typeof r.lon === 'number')
+      .filter((r: any) => typeof r.lat === "number" && typeof r.lon === "number")
       .map((r: any) => ({
         ...r,
         distanceKm: haversineKm(lat, lon, r.lat, r.lon),
