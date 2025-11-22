@@ -4,35 +4,75 @@ import {
   FlatList,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View,
 } from "react-native";
+import * as Location from "expo-location";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, fontSize, spacing } from "../styles/theme";
-import { getAllRestaurants } from "../services/Database";
+import { getAllRestaurants, getRestaurantsNearby } from "../services/Database";
 
 export const SearchView = () => {
   const [restaurants, setRestaurants] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isNearby, setIsNearby] = useState(false);
+  const radiusKm = 5;
 
   useEffect(() => {
-    const load = async () => {
-      try {
-        const all = await getAllRestaurants();
-        setRestaurants(all);
-      } catch (e) {
-        console.error("Erreur chargement restaurants:", e);
-      } finally {
-        setLoading(false);
-      }
-    };
-    load();
+    loadAll();
   }, []);
+
+  const loadAll = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const all = await getAllRestaurants();
+      setRestaurants(all);
+      setIsNearby(false);
+    } catch (e) {
+      console.error("Erreur chargement restaurants:", e);
+      setError("Impossible de charger les restaurants.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadNearby = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") {
+        setError("Permission localisation refusée.");
+        setLoading(false);
+        return;
+      }
+      const position = await Location.getCurrentPositionAsync({});
+      const nearby = await getRestaurantsNearby(
+        position.coords.latitude,
+        position.coords.longitude,
+        radiusKm
+      );
+      setRestaurants(nearby);
+      setIsNearby(true);
+    } catch (e) {
+      console.error("Erreur geoloc:", e);
+      setError("Impossible de récupérer votre position.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const renderItem = ({ item }: { item: any }) => (
     <View style={styles.card}>
       <View style={styles.cardHeader}>
         <Text style={styles.title}>{item.name}</Text>
-        {item.type ? <Text style={styles.type}>{item.type}</Text> : null}
+        {item.distanceKm !== undefined ? (
+          <Text style={styles.distance}>{item.distanceKm.toFixed(1)} km</Text>
+        ) : item.type ? (
+          <Text style={styles.type}>{item.type}</Text>
+        ) : null}
       </View>
       <Text style={styles.cuisine}>{item.cuisines || "Cuisine inconnue"}</Text>
       <View style={styles.tags}>
@@ -50,6 +90,30 @@ export const SearchView = () => {
         <Text style={styles.headerText}>Restaurants</Text>
         <Text style={styles.headerSub}>{restaurants.length} trouvés</Text>
       </View>
+
+      <View style={styles.actions}>
+        <TouchableOpacity style={styles.actionBtn} onPress={loadNearby}>
+          <Ionicons name="locate" size={18} color="#fff" />
+          <Text style={styles.actionText}>Autour de moi ({radiusKm} km)</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.actionBtn, styles.actionGhost]}
+          onPress={loadAll}
+        >
+          <Ionicons name="refresh" size={18} color={colors.primary} />
+          <Text style={[styles.actionText, styles.actionGhostText]}>
+            Tout afficher
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {isNearby && (
+        <Text style={styles.modeText}>
+          Affichage des restaurants dans un rayon de {radiusKm} km.
+        </Text>
+      )}
+
+      {error && <Text style={styles.error}>{error}</Text>}
 
       {loading ? (
         <View style={styles.loader}>
@@ -99,6 +163,41 @@ const styles = StyleSheet.create({
     fontSize: fontSize.small,
     color: colors.inactive,
   },
+  actions: {
+    flexDirection: "row",
+    gap: spacing.small,
+    marginBottom: spacing.small,
+  },
+  actionBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: colors.primary,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+  },
+  actionText: {
+    color: "#fff",
+    fontWeight: "700",
+  },
+  actionGhost: {
+    backgroundColor: (colors as any).primary + "12",
+    borderWidth: 1,
+    borderColor: colors.primary,
+  },
+  actionGhostText: {
+    color: colors.primary,
+  },
+  modeText: {
+    color: colors.inactive,
+    marginBottom: spacing.small,
+    fontSize: fontSize.small,
+  },
+  error: {
+    color: "#EF4444",
+    marginBottom: spacing.small,
+  },
   loader: {
     flex: 1,
     alignItems: "center",
@@ -132,6 +231,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   type: {
+    fontSize: fontSize.small,
+    color: colors.inactive,
+  },
+  distance: {
     fontSize: fontSize.small,
     color: colors.inactive,
   },

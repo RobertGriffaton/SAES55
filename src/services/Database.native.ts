@@ -42,21 +42,29 @@ export const initDatabase = async () => {
 const insertDataFromJSON = async () => {
   for (const r of restaurantsList) {
     const cuisinesStr = Array.isArray(r.cuisine) ? r.cuisine.join(',') : (r.cuisine || "");
+    const lat = typeof r.lat === 'number' ? r.lat : (r.meta_geo_point?.lat ?? null);
+    const lon = typeof r.lon === 'number' ? r.lon : (r.meta_geo_point?.lon ?? null);
     await db.runAsync(
       `INSERT INTO restaurants (name, type, cuisines, lat, lon, vegetarian, vegan, takeaway) 
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [r.name, r.type, cuisinesStr, r.lat, r.lon, r.diet?.vegetarian ? 1 : 0, r.diet?.vegan ? 1 : 0, r.options?.takeaway ? 1 : 0]
+      [r.name, r.type, cuisinesStr, lat, lon, r.diet?.vegetarian ? 1 : 0, r.diet?.vegan ? 1 : 0, r.options?.takeaway ? 1 : 0]
     );
   }
 };
 
 const ensureRestaurantsSeeded = async () => {
   try {
-    const row: any = await db.getFirstAsync('SELECT COUNT(*) as count FROM restaurants');
-    const count = row?.count ?? 0;
-    if (count > 0) return;
-    await insertDataFromJSON();
-    console.log(`[Mobile DB] ${restaurantsList.length} restaurants importes depuis le JSON.`);
+    const rowCount: any = await db.getFirstAsync('SELECT COUNT(*) as count FROM restaurants');
+    const rowWithLat: any = await db.getFirstAsync('SELECT COUNT(*) as count FROM restaurants WHERE lat IS NOT NULL AND lon IS NOT NULL');
+    const count = rowCount?.count ?? 0;
+    const withLat = rowWithLat?.count ?? 0;
+
+    // Si aucune donnée ou si les données existantes n'ont pas de coordonn��es, on r��importe le JSON
+    if (count === 0 || withLat === 0) {
+      await db.execAsync('DELETE FROM restaurants;');
+      await insertDataFromJSON();
+      console.log(`[Mobile DB] ${restaurantsList.length} restaurants importes depuis le JSON.`);
+    }
   } catch (e) {
     console.error("Erreur lors de l'initialisation des restaurants:", e);
   }
@@ -92,6 +100,35 @@ export const getAllRestaurants = async () => {
     return await db.getAllAsync('SELECT * FROM restaurants ORDER BY name ASC');
   } catch (e) {
     console.error("Erreur recuperation restaurants:", e);
+    return [];
+  }
+};
+
+const haversineKm = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+  const toRad = (x: number) => (x * Math.PI) / 180;
+  const R = 6371; // Rayon terrestre en km
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+};
+
+export const getRestaurantsNearby = async (lat: number, lon: number, radiusKm: number = 5) => {
+  try {
+    const rows = await db.getAllAsync('SELECT * FROM restaurants WHERE lat IS NOT NULL AND lon IS NOT NULL');
+    const withDistance = rows
+      .map((r: any) => ({
+        ...r,
+        distanceKm: haversineKm(lat, lon, r.lat, r.lon),
+      }))
+      .filter((r: any) => r.distanceKm <= radiusKm)
+      .sort((a: any, b: any) => a.distanceKm - b.distanceKm);
+    return withDistance;
+  } catch (e) {
+    console.error("Erreur recuperation restaurants proches:", e);
     return [];
   }
 };

@@ -19,6 +19,9 @@ export const getDB = () => {
 export const getAllRestaurants = async (): Promise<any[]> => {
   return Promise.resolve([]);
 };
+export const getRestaurantsNearby = async (lat: number, lon: number, radiusKm?: number): Promise<any[]> => {
+  return Promise.resolve([]);
+};
 export const createUser = async (username: string, avatar?: string): Promise<number | null> => {
   return Promise.resolve(null);
 };

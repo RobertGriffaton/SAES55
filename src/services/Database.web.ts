@@ -1,20 +1,19 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { UserPreferences } from '../models/PreferencesModel';
 
-// Clé de stockage uniquement pour les NOUVEAUX restaurants ajoutés par l'utilisateur
+// Clés de stockage pour les données personnalisées
 const DB_KEY_CUSTOM = 'food_reco_db_custom_v1';
 const DB_USERS_KEY = 'food_reco_users_v1';
 
-// 1. Chargement des données STATIQUES en mémoire (RAM)
-// On ne les met PAS dans le LocalStorage pour éviter le "QuotaExceededError"
+// Chargement du JSON statique en mémoire
 const rawData = require('../data/restaurants.json');
 
 const staticData = (Array.isArray(rawData) ? rawData : (rawData.restaurants || [])).map((r: any) => ({
   ...r,
-  // Sécurisation des IDs
   id: r.id || Math.random().toString(36).substr(2, 9),
-  // Normalisation
   cuisines: Array.isArray(r.cuisine) ? r.cuisine.join(',') : (r.cuisine || ""),
+  lat: typeof r.lat === 'number' ? r.lat : (r.meta_geo_point?.lat ?? null),
+  lon: typeof r.lon === 'number' ? r.lon : (r.meta_geo_point?.lon ?? null),
   vegetarian: r.diet?.vegetarian ? 1 : (r.vegetarian === 'yes' ? 1 : 0),
   vegan: r.diet?.vegan ? 1 : (r.vegan === 'yes' ? 1 : 0),
   takeaway: r.options?.takeaway ? 1 : (r.takeaway === 'yes' ? 1 : 0),
@@ -23,7 +22,6 @@ const staticData = (Array.isArray(rawData) ? rawData : (rawData.restaurants || [
 // --- API PUBLIQUE ---
 
 export const initDatabase = async () => {
-  // Sur le web, pas besoin d'initialiser grand chose car 'staticData' est déjà en mémoire.
   console.log(`[Web DB] ${staticData.length} restaurants chargés en mémoire (Lecture seule).`);
   try {
     const custom = await AsyncStorage.getItem(DB_KEY_CUSTOM);
@@ -34,8 +32,7 @@ export const initDatabase = async () => {
 };
 
 export const searchRestaurants = async (prefs: UserPreferences) => {
-  // 1. Récupérer les ajouts de l'utilisateur (si y en a)
-  let customData = [];
+  let customData: any[] = [];
   try {
     const json = await AsyncStorage.getItem(DB_KEY_CUSTOM);
     if (json) customData = JSON.parse(json);
@@ -43,52 +40,44 @@ export const searchRestaurants = async (prefs: UserPreferences) => {
     console.error(e);
   }
 
-  // 2. Fusionner : Données du fichier JSON + Données du navigateur
   const allRestaurants = [...staticData, ...customData];
 
   console.log(`[Recherche Web] Filtrage parmi ${allRestaurants.length} restaurants...`);
 
-  // 3. Filtrer
   const results = allRestaurants.filter((r: any) => {
-    // Filtre Cuisines
     if (prefs.cuisines.length > 0) {
       const restoCuisines = (r.cuisines || "").toLowerCase();
       const match = prefs.cuisines.some(pref => restoCuisines.includes(pref.toLowerCase()));
       if (!match) return false;
     }
-    // Filtres booléens
     if (prefs.diet === 'Végétarien' && r.vegetarian !== 1) return false;
     if (prefs.diet === 'Végan' && r.vegan !== 1) return false;
     if (prefs.options.emporter && r.takeaway !== 1) return false;
-
     return true;
   });
 
   return results;
 };
 
-// Fonction pour ajouter un restaurant (Sauvegardé dans le navigateur !)
 export const addRestaurant = async (newResto: any) => {
   try {
     const json = await AsyncStorage.getItem(DB_KEY_CUSTOM);
     const currentCustom = json ? JSON.parse(json) : [];
-    
     currentCustom.push(newResto);
-    
-    // On ne sauvegarde QUE les données perso, donc ça ne dépassera pas le quota
     await AsyncStorage.setItem(DB_KEY_CUSTOM, JSON.stringify(currentCustom));
     console.log("[Web DB] Restaurant ajouté et sauvegardé !");
   } catch (e) {
     console.error("Erreur sauvegarde web:", e);
   }
 };
+
 export const createUser = async (username: string, avatar: string = "default") => {
   try {
     const json = await AsyncStorage.getItem(DB_USERS_KEY);
     const users = json ? JSON.parse(json) : [];
 
     const newUser = {
-      id: Date.now(), // Faux ID unique basé sur le temps
+      id: Date.now(),
       username,
       avatar,
       created_at: Date.now()
@@ -132,5 +121,35 @@ export const getAllRestaurants = async () => {
   } catch (e) {
     console.error("Erreur recuperation restaurants web:", e);
     return [...staticData];
+  }
+};
+
+const haversineKm = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+  const toRad = (x: number) => (x * Math.PI) / 180;
+  const R = 6371;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+};
+
+export const getRestaurantsNearby = async (lat: number, lon: number, radiusKm: number = 5) => {
+  try {
+    const all = await getAllRestaurants();
+    const withDistance = all
+      .filter((r: any) => typeof r.lat === 'number' && typeof r.lon === 'number')
+      .map((r: any) => ({
+        ...r,
+        distanceKm: haversineKm(lat, lon, r.lat, r.lon),
+      }))
+      .filter((r: any) => r.distanceKm <= radiusKm)
+      .sort((a: any, b: any) => a.distanceKm - b.distanceKm);
+    return withDistance;
+  } catch (e) {
+    console.error("Erreur recuperation restos proches web:", e);
+    return [];
   }
 };
