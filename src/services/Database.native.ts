@@ -65,7 +65,55 @@ export const searchRestaurants = async (prefs: UserPreferences) => {
   if (prefs.options.emporter) query += " AND takeaway = 1";
 
   // Note : Le calcul de distance précis se fait souvent après récupération pour simplifier SQL
-  // Ici on renvoie tout ce qui match les critères, on filtrera la distance en JS si besoin
-  const results = await db.getAllAsync(query, params);
-  return results;
-};
+
+    // Ici on renvoie tout ce qui match les critères, on filtrera la distance en JS si besoin
+
+    const results = await db.getAllAsync(query, params);
+
+    return results;
+
+  };
+
+  
+
+  export const getUniqueCuisines = async (): Promise<string[]> => {
+    try {
+      const results = await db.getAllAsync<{ cuisines: string }>('SELECT DISTINCT cuisines FROM restaurants');
+      const cuisineSet = new Set<string>();
+  
+      results.forEach(item => {
+        if (item.cuisines) {
+          item.cuisines.split(',').forEach(c => {
+            if (c.trim()) {
+              cuisineSet.add(c.trim());
+            }
+          });
+        }
+      });
+  
+      return Array.from(cuisineSet).sort();
+    } catch (error) {
+      console.error("Erreur lors de la récupération des cuisines uniques:", error);
+      return [];
+    }
+  };
+
+  export const getUniqueTypes = async (): Promise<string[]> => {
+    try {
+      const results = await db.getAllAsync<{ type: string }>('SELECT DISTINCT type FROM restaurants');
+      const typeSet = new Set<string>();
+
+      results.forEach(item => {
+        if (item.type && item.type.trim()) {
+          typeSet.add(item.type.trim());
+        }
+      });
+
+      return Array.from(typeSet).sort();
+    } catch (error) {
+      console.error("Erreur lors de la récupération des types uniques:", error);
+      return [];
+    }
+  };
+
+  

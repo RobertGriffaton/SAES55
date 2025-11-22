@@ -78,6 +78,36 @@ export const addRestaurant = async (newResto: any) => {
     await AsyncStorage.setItem(DB_KEY_CUSTOM, JSON.stringify(currentCustom));
     console.log("[Web DB] Restaurant ajouté et sauvegardé !");
   } catch (e) {
-    console.error("Erreur sauvegarde web:", e);
-  }
-};
+        console.error("Erreur sauvegarde web:", e);
+      }
+    };
+    
+    export const getUniqueCuisines = async (): Promise<string[]> => {
+      const cuisineSet = new Set<string>();
+    
+      staticData.forEach(item => {
+        // Ajout des cuisines
+        if (item.cuisines) {
+          item.cuisines.split(',').forEach(c => {
+            if (c.trim()) {
+              cuisineSet.add(c.trim());
+            }
+          });
+        }
+      });
+    
+      return Promise.resolve(Array.from(cuisineSet).sort());
+    };
+
+    export const getUniqueTypes = async (): Promise<string[]> => {
+      const typeSet = new Set<string>();
+    
+      staticData.forEach(item => {
+        if (item.type && item.type.trim()) {
+          typeSet.add(item.type.trim());
+        }
+      });
+    
+      return Promise.resolve(Array.from(typeSet).sort());
+    };
+    

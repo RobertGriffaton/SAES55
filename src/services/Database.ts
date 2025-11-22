@@ -13,6 +13,24 @@ export const searchRestaurants = async (prefs: UserPreferences): Promise<any[]> 
 };
 
 // Ajoutez ici les autres fonctions si vous en avez (ex: getDB)
+
 export const getDB = () => {
+
   return null;
+
+};
+
+
+
+export const getUniqueCuisines = async (): Promise<string[]> => {
+
+  console.warn("Fallback getUniqueCuisines utilisé");
+
+  return Promise.resolve([]);
+
+};
+
+export const getUniqueTypes = async (): Promise<string[]> => {
+  console.warn("Fallback getUniqueTypes utilisé");
+  return Promise.resolve([]);
 };
