@@ -17,6 +17,8 @@ export const MapView = ({ onRestaurantSelect }: MapViewProps) => {
   // Position par défaut (Paris) en attendant la géolocalisation
   const [position, setPosition] = useState<[number, number] | null>(null);
   const [icon, setIcon] = useState<any>(null);
+  const [radiusKm, setRadiusKm] = useState<number>(5);
+  const [loadingNearby, setLoadingNearby] = useState(false);
 
   useEffect(() => {
     // 1. Chargement dynamique de Leaflet (pour éviter les erreurs de compilation "window is undefined")
@@ -53,12 +55,9 @@ export const MapView = ({ onRestaurantSelect }: MapViewProps) => {
     // 2. Géolocalisation du navigateur
     if (typeof navigator !== 'undefined') {
         navigator.geolocation.getCurrentPosition(
-            async (pos) => {
+            (pos) => {
                 const { latitude, longitude } = pos.coords;
                 setPosition([latitude, longitude]);
-                // On charge les restos autour
-                const data = await getRestaurantsNearby(latitude, longitude, 5);
-                setRestaurants(data);
             },
             (err) => {
                 console.warn("Erreur GPS Web:", err);
@@ -68,6 +67,33 @@ export const MapView = ({ onRestaurantSelect }: MapViewProps) => {
         );
     }
   }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchNearby = async () => {
+      if (!position) return;
+      try {
+        setLoadingNearby(true);
+        const data = await getRestaurantsNearby(position[0], position[1], radiusKm);
+        if (isMounted) setRestaurants(data);
+      } catch (e) {
+        console.error("Erreur chargement restos autour:", e);
+      } finally {
+        if (isMounted) setLoadingNearby(false);
+      }
+    };
+    fetchNearby();
+    return () => {
+      isMounted = false;
+    };
+  }, [position, radiusKm]);
+
+  const changeRadius = (delta: number) => {
+    setRadiusKm((prev) => {
+      const next = Math.max(1, Math.min(30, prev + delta));
+      return next;
+    });
+  };
 
   if (!libLoaded || !position || !icon) {
     return (
@@ -120,6 +146,34 @@ export const MapView = ({ onRestaurantSelect }: MapViewProps) => {
         </MapContainer>
       </div>
 
+      {/* Contrôle du rayon */}
+      <div style={webStyles.radiusControl}>
+        <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 6 }}>
+          Rayon : {radiusKm} km
+        </div>
+        <div style={webStyles.radiusButtons}>
+          <button
+            style={{ ...webStyles.radiusButton, opacity: radiusKm <= 1 ? 0.6 : 1 }}
+            onClick={() => changeRadius(-1)}
+            disabled={radiusKm <= 1}
+          >
+            -
+          </button>
+          <button
+            style={{ ...webStyles.radiusButton, opacity: radiusKm >= 30 ? 0.6 : 1 }}
+            onClick={() => changeRadius(1)}
+            disabled={radiusKm >= 30}
+          >
+            +
+          </button>
+        </div>
+        {loadingNearby ? (
+          <div style={webStyles.radiusHint}>Mise à jour des restaurants...</div>
+        ) : (
+          <div style={webStyles.radiusHint}>Ajuste le rayon pour voir plus ou moins de restos.</div>
+        )}
+      </div>
+
       {/* Légende flottante */}
       <div style={webStyles.legend}>
         {restaurants.length} restaurants trouvés
@@ -148,5 +202,37 @@ const webStyles = {
         fontWeight: 'bold',
         fontSize: '14px',
         fontFamily: 'system-ui, -apple-system, sans-serif'
+    },
+    radiusControl: {
+        position: 'absolute' as 'absolute',
+        top: '20px',
+        right: '20px',
+        backgroundColor: 'white',
+        padding: '12px 14px',
+        borderRadius: '12px',
+        boxShadow: '0 2px 6px rgba(0,0,0,0.25)',
+        zIndex: 1000,
+        width: '180px',
+        fontFamily: 'system-ui, -apple-system, sans-serif'
+    },
+    radiusButtons: {
+        display: 'flex',
+        gap: '8px'
+    },
+    radiusButton: {
+        flex: 1,
+        padding: '10px 0',
+        borderRadius: '10px',
+        border: '1px solid #e0e0e0',
+        backgroundColor: '#f5f5f5',
+        fontSize: '16px',
+        fontWeight: 700,
+        cursor: 'pointer' as 'pointer'
+    },
+    radiusHint: {
+        marginTop: '8px',
+        fontSize: '12px',
+        color: '#666',
+        lineHeight: 1.4
     }
 };
