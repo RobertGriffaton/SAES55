@@ -2,7 +2,7 @@
 import * as SQLite from 'expo-sqlite';
 import { UserPreferences } from '../models/PreferencesModel';
 
-// Import du JSON via require pour compatibilite
+// Import du JSON via require pour compatibilité
 const rawData = require('../data/restaurants.json');
 const restaurantsList: any[] = Array.isArray(rawData) ? rawData : (rawData.restaurants || []);
 
@@ -10,6 +10,7 @@ const db = SQLite.openDatabaseSync('food_reco.db');
 
 export const initDatabase = async () => {
   try {
+    // 1. On crée la table RESTAURANTS (code existant...)
     await db.execAsync(`
       CREATE TABLE IF NOT EXISTS restaurants (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -24,6 +25,7 @@ export const initDatabase = async () => {
       );
     `);
 
+    // 2. --- NOUVEAU : On crée la table USERS ---
     await db.execAsync(`
       CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -33,7 +35,7 @@ export const initDatabase = async () => {
       );
     `);
 
-    await ensureRestaurantsSeeded();
+    // ... le reste de votre code de chargement JSON (count restaurants, etc.)
   } catch (error) {
     console.error("Erreur init BDD Mobile:", error);
   }
@@ -42,35 +44,15 @@ export const initDatabase = async () => {
 const insertDataFromJSON = async () => {
   for (const r of restaurantsList) {
     const cuisinesStr = Array.isArray(r.cuisine) ? r.cuisine.join(',') : (r.cuisine || "");
-    const lat = typeof r.lat === 'number' ? r.lat : (r.meta_geo_point?.lat ?? null);
-    const lon = typeof r.lon === 'number' ? r.lon : (r.meta_geo_point?.lon ?? null);
     await db.runAsync(
       `INSERT INTO restaurants (name, type, cuisines, lat, lon, vegetarian, vegan, takeaway) 
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [r.name, r.type, cuisinesStr, lat, lon, r.diet?.vegetarian ? 1 : 0, r.diet?.vegan ? 1 : 0, r.options?.takeaway ? 1 : 0]
+      [r.name, r.type, cuisinesStr, r.lat, r.lon, r.diet?.vegetarian ? 1 : 0, r.diet?.vegan ? 1 : 0, r.options?.takeaway ? 1 : 0]
     );
   }
 };
 
-const ensureRestaurantsSeeded = async () => {
-  try {
-    const rowCount: any = await db.getFirstAsync('SELECT COUNT(*) as count FROM restaurants');
-    const rowWithLat: any = await db.getFirstAsync('SELECT COUNT(*) as count FROM restaurants WHERE lat IS NOT NULL AND lon IS NOT NULL');
-    const count = rowCount?.count ?? 0;
-    const withLat = rowWithLat?.count ?? 0;
-
-    // Si aucune donnée ou si les données existantes n'ont pas de coordonn��es, on r��importe le JSON
-    if (count === 0 || withLat === 0) {
-      await db.execAsync('DELETE FROM restaurants;');
-      await insertDataFromJSON();
-      console.log(`[Mobile DB] ${restaurantsList.length} restaurants importes depuis le JSON.`);
-    }
-  } catch (e) {
-    console.error("Erreur lors de l'initialisation des restaurants:", e);
-  }
-};
-
-// Fonction de recherche SQL optimise pour le mobile
+// Fonction de recherche SQL optimisée pour le mobile
 export const searchRestaurants = async (prefs: UserPreferences) => {
   let query = "SELECT * FROM restaurants WHERE 1=1";
   const params: any[] = [];
@@ -83,66 +65,27 @@ export const searchRestaurants = async (prefs: UserPreferences) => {
   }
 
   // Filtre Diet
-  if (prefs.diet === 'VǸgǸtarien') query += " AND vegetarian = 1";
-  if (prefs.diet === 'VǸgan') query += " AND vegan = 1";
+  if (prefs.diet === 'Végétarien') query += " AND vegetarian = 1";
+  if (prefs.diet === 'Végan') query += " AND vegan = 1";
   
   // Filtre Options
   if (prefs.options.emporter) query += " AND takeaway = 1";
 
-  // Note : Le calcul de distance precis se fait souvent apres recuperation pour simplifier SQL
-  // Ici on renvoie tout ce qui match les criteres, on filtrera la distance en JS si besoin
+  // Note : Le calcul de distance précis se fait souvent après récupération pour simplifier SQL
+  // Ici on renvoie tout ce qui match les critères, on filtrera la distance en JS si besoin
   const results = await db.getAllAsync(query, params);
   return results;
 };
-
-export const getAllRestaurants = async () => {
-  try {
-    return await db.getAllAsync('SELECT * FROM restaurants ORDER BY name ASC');
-  } catch (e) {
-    console.error("Erreur recuperation restaurants:", e);
-    return [];
-  }
-};
-
-const haversineKm = (lat1: number, lon1: number, lat2: number, lon2: number) => {
-  const toRad = (x: number) => (x * Math.PI) / 180;
-  const R = 6371; // Rayon terrestre en km
-  const dLat = toRad(lat2 - lat1);
-  const dLon = toRad(lon2 - lon1);
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
-};
-
-export const getRestaurantsNearby = async (lat: number, lon: number, radiusKm: number = 5) => {
-  try {
-    const rows = await db.getAllAsync('SELECT * FROM restaurants WHERE lat IS NOT NULL AND lon IS NOT NULL');
-    const withDistance = rows
-      .map((r: any) => ({
-        ...r,
-        distanceKm: haversineKm(lat, lon, r.lat, r.lon),
-      }))
-      .filter((r: any) => r.distanceKm <= radiusKm)
-      .sort((a: any, b: any) => a.distanceKm - b.distanceKm);
-    return withDistance;
-  } catch (e) {
-    console.error("Erreur recuperation restaurants proches:", e);
-    return [];
-  }
-};
-
 export const createUser = async (username: string, avatar: string = "default") => {
   try {
     const result = await db.runAsync(
       'INSERT INTO users (username, avatar, created_at) VALUES (?, ?, ?)',
       [username, avatar, Date.now()]
     );
-    console.log("[Mobile] Utilisateur cree avec l'ID:", result.lastInsertRowId);
+    console.log("[Mobile] Utilisateur créé avec l'ID:", result.lastInsertRowId);
     return result.lastInsertRowId;
   } catch (e) {
-    console.error("Erreur creation user:", e);
+    console.error("Erreur création user:", e);
     return null;
   }
 };
@@ -152,7 +95,7 @@ export const getUser = async (id: number) => {
     const user = await db.getFirstAsync('SELECT * FROM users WHERE id = ?', [id]);
     return user;
   } catch (e) {
-    console.error("Erreur recuperation user:", e);
+    console.error("Erreur récupération user:", e);
     return null;
   }
 };
@@ -164,3 +107,66 @@ export const getAllUsers = async () => {
     return [];
   }
 };
+
+// 1. Récupérer tous les restaurants (Attention, ça peut être lourd sur mobile)
+export const getAllRestaurants = async () => {
+  try {
+    return await db.getAllAsync('SELECT * FROM restaurants LIMIT 100'); // LIMIT 100 pour éviter de crash si 30k restos
+  } catch (e) {
+    console.error("Erreur getAllRestaurants mobile:", e);
+    return [];
+  }
+};
+
+// 2. Récupérer les restaurants proches (Optimisation Bounding Box)
+export const getRestaurantsNearby = async (userLat: number, userLon: number, radiusKm: number) => {
+  try {
+    // Optimisation : On ne charge pas toute la base.
+    // On calcule un carré grossier autour de l'utilisateur pour SQL
+    // 1 degré de latitude ~= 111 km
+    const latDelta = radiusKm / 111;
+    const lonDelta = radiusKm / (111 * Math.cos(userLat * (Math.PI / 180)));
+
+    const minLat = userLat - latDelta;
+    const maxLat = userLat + latDelta;
+    const minLon = userLon - lonDelta;
+    const maxLon = userLon + lonDelta;
+
+    // Requête SQL rapide (Bounding Box)
+    const candidates = await db.getAllAsync(
+      `SELECT * FROM restaurants 
+       WHERE lat BETWEEN ? AND ? 
+       AND lon BETWEEN ? AND ?`,
+      [minLat, maxLat, minLon, maxLon]
+    );
+
+    // Filtrage précis (Cercle exact) en JavaScript
+    // On réutilise la formule Haversine ici
+    const results = candidates.map((r: any) => ({
+      ...r,
+      distanceKm: getDistanceFromLatLonInKm(userLat, userLon, r.lat, r.lon)
+    })).filter((r: any) => r.distanceKm <= radiusKm)
+      .sort((a: any, b: any) => a.distanceKm - b.distanceKm);
+
+    return results;
+
+  } catch (e) {
+    console.error("Erreur getRestaurantsNearby mobile:", e);
+    return [];
+  }
+};
+
+// Fonction utilitaire pour le calcul précis (à mettre en bas du fichier ou importer)
+const getDistanceFromLatLonInKm = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+  const R = 6371; // Rayon de la terre en km
+  const dLat = deg2rad(lat2 - lat1);
+  const dLon = deg2rad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+};
+
+const deg2rad = (deg: number) => deg * (Math.PI / 180);
