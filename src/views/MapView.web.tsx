@@ -16,11 +16,13 @@ export const MapView = ({ onRestaurantSelect }: MapViewProps) => {
   const [restaurants, setRestaurants] = useState<any[]>([]);
   // Position par défaut (Paris) en attendant la géolocalisation
   const [position, setPosition] = useState<[number, number] | null>(null);
+  const [userPosition, setUserPosition] = useState<[number, number] | null>(null);
   const [icon, setIcon] = useState<any>(null);
   const [radiusKm, setRadiusKm] = useState<number>(5);
   const [loadingNearby, setLoadingNearby] = useState(false);
   const [searchText, setSearchText] = useState("");
   const [citiesIndex, setCitiesIndex] = useState<{ label: string; lat: number; lon: number }[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
 
   useEffect(() => {
     // 1. Chargement dynamique de Leaflet (pour éviter les erreurs de compilation "window is undefined")
@@ -59,11 +61,13 @@ export const MapView = ({ onRestaurantSelect }: MapViewProps) => {
         navigator.geolocation.getCurrentPosition(
             (pos) => {
                 const { latitude, longitude } = pos.coords;
+                setUserPosition([latitude, longitude]);
                 setPosition([latitude, longitude]);
             },
             (err) => {
                 console.warn("Erreur GPS Web:", err);
                 // Fallback sur Paris si refus ou erreur
+                setUserPosition([48.8566, 2.3522]);
                 setPosition([48.8566, 2.3522]);
             }
         );
@@ -137,6 +141,14 @@ export const MapView = ({ onRestaurantSelect }: MapViewProps) => {
   const handleCitySelect = (city: { label: string; lat: number; lon: number }) => {
     setSearchText(city.label);
     setPosition([city.lat, city.lon]);
+    setShowSuggestions(false);
+  };
+
+  const resetToUserPosition = () => {
+    if (userPosition) {
+      setPosition(userPosition);
+      setSearchText("");
+    }
   };
 
   if (!libLoaded || !position || !icon) {
@@ -192,20 +204,36 @@ export const MapView = ({ onRestaurantSelect }: MapViewProps) => {
 
       {/* Recherche hors-ligne par ville/commune */}
       <div style={webStyles.searchBox}>
-        <input
-          style={webStyles.searchInput}
-          value={searchText}
-          onChange={(e: any) => setSearchText(e.target.value)}
-          placeholder="Ville, commune..."
-        />
+        <div style={webStyles.searchRow}>
+          <input
+            style={webStyles.searchInput}
+            value={searchText}
+            onChange={(e: any) => {
+              setSearchText(e.target.value);
+              setShowSuggestions(true);
+            }}
+            placeholder="Ville, commune..."
+          />
+          <button
+            style={webStyles.positionButton}
+            onClick={resetToUserPosition}
+            title="Revenir à ma position"
+            disabled={!userPosition}
+          >
+            📍
+          </button>
+        </div>
         <button
           style={{ ...webStyles.searchButton, opacity: citySuggestions.length ? 1 : 0.6 }}
-          onClick={() => citySuggestions[0] && handleCitySelect(citySuggestions[0])}
+          onClick={() => {
+            setShowSuggestions(false);
+            citySuggestions[0] && handleCitySelect(citySuggestions[0]);
+          }}
           disabled={!citySuggestions.length}
         >
           Aller
         </button>
-        {citySuggestions.length > 0 && (
+        {showSuggestions && citySuggestions.length > 0 && (
           <div style={webStyles.suggestions}>
             {citySuggestions.map((c) => (
               <div
@@ -218,7 +246,7 @@ export const MapView = ({ onRestaurantSelect }: MapViewProps) => {
             ))}
           </div>
         )}
-        {searchText.trim().length >= 2 && citySuggestions.length === 0 && (
+        {showSuggestions && searchText.trim().length >= 2 && citySuggestions.length === 0 && (
           <div style={webStyles.noResult}>Pas trouvé dans les données hors ligne.</div>
         )}
       </div>
@@ -283,24 +311,40 @@ const webStyles = {
     searchBox: {
         position: 'absolute' as 'absolute',
         top: '20px',
-        left: '20px',
+        left: '80px',
         backgroundColor: 'white',
         padding: '12px',
         borderRadius: '12px',
         boxShadow: '0 2px 6px rgba(0,0,0,0.25)',
         zIndex: 1000,
-        width: '240px',
+        width: '260px',
         display: 'flex',
         flexDirection: 'column' as 'column',
-        gap: '8px',
+        gap: '6px',
         fontFamily: 'system-ui, -apple-system, sans-serif'
     },
+    searchRow: {
+        display: 'flex',
+        flexDirection: 'row' as 'row',
+        alignItems: 'center',
+        gap: '6px'
+    },
     searchInput: {
-        width: '100%',
+        flex: 1,
         padding: '10px',
         borderRadius: '10px',
         border: '1px solid #e0e0e0',
         fontSize: '14px'
+    },
+    positionButton: {
+        width: '40px',
+        height: '40px',
+        borderRadius: '12px',
+        border: '1px solid #e0e0e0',
+        backgroundColor: '#fff',
+        cursor: 'pointer' as 'pointer',
+        fontSize: '18px',
+        lineHeight: 1
     },
     searchButton: {
         width: '100%',
