@@ -33,3 +33,4 @@ export const getUser = async (id: number): Promise<any> => {
 export const getAllUsers = async (): Promise<any[]> => {
   return Promise.resolve([]);
 };
+
