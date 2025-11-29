@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { View, Text, StyleSheet, ActivityIndicator, Platform } from "react-native";
 import { colors } from "../styles/theme";
-import { getRestaurantsNearby } from "../services/Database";
+import { getAllRestaurants, getRestaurantsNearby } from "../services/Database";
 import 'leaflet/dist/leaflet.css'; // Indispensable pour que la carte s'affiche bien
 
 // Variables pour les modules chargés dynamiquement
@@ -19,6 +19,8 @@ export const MapView = ({ onRestaurantSelect }: MapViewProps) => {
   const [icon, setIcon] = useState<any>(null);
   const [radiusKm, setRadiusKm] = useState<number>(5);
   const [loadingNearby, setLoadingNearby] = useState(false);
+  const [searchText, setSearchText] = useState("");
+  const [citiesIndex, setCitiesIndex] = useState<{ label: string; lat: number; lon: number }[]>([]);
 
   useEffect(() => {
     // 1. Chargement dynamique de Leaflet (pour éviter les erreurs de compilation "window is undefined")
@@ -69,6 +71,35 @@ export const MapView = ({ onRestaurantSelect }: MapViewProps) => {
   }, []);
 
   useEffect(() => {
+    const buildCityIndex = async () => {
+      try {
+        const all = await getAllRestaurants();
+        const map = new Map<string, { label: string; latSum: number; lonSum: number; count: number }>();
+        all.forEach((r: any) => {
+          if (typeof r.lat !== "number" || typeof r.lon !== "number") return;
+          const label = r.meta_name_com || r.meta_name_dep || r.meta_name_reg || "";
+          if (!label) return;
+          const key = String(label).toLowerCase();
+          const existing = map.get(key) || { label, latSum: 0, lonSum: 0, count: 0 };
+          existing.latSum += r.lat;
+          existing.lonSum += r.lon;
+          existing.count += 1;
+          map.set(key, existing);
+        });
+        const aggregated = Array.from(map.values()).map((item) => ({
+          label: item.label,
+          lat: item.latSum / item.count,
+          lon: item.lonSum / item.count,
+        }));
+        setCitiesIndex(aggregated);
+      } catch (e) {
+        console.error("Erreur construction index villes:", e);
+      }
+    };
+    buildCityIndex();
+  }, []);
+
+  useEffect(() => {
     let isMounted = true;
     const fetchNearby = async () => {
       if (!position) return;
@@ -93,6 +124,19 @@ export const MapView = ({ onRestaurantSelect }: MapViewProps) => {
       const next = Math.max(1, Math.min(30, prev + delta));
       return next;
     });
+  };
+
+  const citySuggestions = useMemo(() => {
+    const q = searchText.trim().toLowerCase();
+    if (q.length < 2) return [];
+    return citiesIndex
+      .filter((c) => c.label.toLowerCase().includes(q))
+      .slice(0, 5);
+  }, [searchText, citiesIndex]);
+
+  const handleCitySelect = (city: { label: string; lat: number; lon: number }) => {
+    setSearchText(city.label);
+    setPosition([city.lat, city.lon]);
   };
 
   if (!libLoaded || !position || !icon) {
@@ -144,6 +188,39 @@ export const MapView = ({ onRestaurantSelect }: MapViewProps) => {
              </Marker>
           ))}
         </MapContainer>
+      </div>
+
+      {/* Recherche hors-ligne par ville/commune */}
+      <div style={webStyles.searchBox}>
+        <input
+          style={webStyles.searchInput}
+          value={searchText}
+          onChange={(e: any) => setSearchText(e.target.value)}
+          placeholder="Ville, commune..."
+        />
+        <button
+          style={{ ...webStyles.searchButton, opacity: citySuggestions.length ? 1 : 0.6 }}
+          onClick={() => citySuggestions[0] && handleCitySelect(citySuggestions[0])}
+          disabled={!citySuggestions.length}
+        >
+          Aller
+        </button>
+        {citySuggestions.length > 0 && (
+          <div style={webStyles.suggestions}>
+            {citySuggestions.map((c) => (
+              <div
+                key={`${c.label}-${c.lat}-${c.lon}`}
+                style={webStyles.suggestionItem}
+                onClick={() => handleCitySelect(c)}
+              >
+                {c.label}
+              </div>
+            ))}
+          </div>
+        )}
+        {searchText.trim().length >= 2 && citySuggestions.length === 0 && (
+          <div style={webStyles.noResult}>Pas trouvé dans les données hors ligne.</div>
+        )}
       </div>
 
       {/* Contrôle du rayon */}
@@ -202,6 +279,55 @@ const webStyles = {
         fontWeight: 'bold',
         fontSize: '14px',
         fontFamily: 'system-ui, -apple-system, sans-serif'
+    },
+    searchBox: {
+        position: 'absolute' as 'absolute',
+        top: '20px',
+        left: '20px',
+        backgroundColor: 'white',
+        padding: '12px',
+        borderRadius: '12px',
+        boxShadow: '0 2px 6px rgba(0,0,0,0.25)',
+        zIndex: 1000,
+        width: '240px',
+        display: 'flex',
+        flexDirection: 'column' as 'column',
+        gap: '8px',
+        fontFamily: 'system-ui, -apple-system, sans-serif'
+    },
+    searchInput: {
+        width: '100%',
+        padding: '10px',
+        borderRadius: '10px',
+        border: '1px solid #e0e0e0',
+        fontSize: '14px'
+    },
+    searchButton: {
+        width: '100%',
+        padding: '10px 0',
+        borderRadius: '10px',
+        border: '1px solid #e0e0e0',
+        backgroundColor: colors.primary || '#007AFF',
+        color: '#fff',
+        fontWeight: 700,
+        cursor: 'pointer' as 'pointer',
+        fontSize: '14px'
+    },
+    suggestions: {
+        backgroundColor: '#fafafa',
+        border: '1px solid #e0e0e0',
+        borderRadius: '10px',
+        overflow: 'hidden'
+    },
+    suggestionItem: {
+        padding: '10px 12px',
+        borderBottom: '1px solid #e0e0e0',
+        cursor: 'pointer' as 'pointer',
+        fontSize: '14px'
+    },
+    noResult: {
+        fontSize: '12px',
+        color: '#666'
     },
     radiusControl: {
         position: 'absolute' as 'absolute',
