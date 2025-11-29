@@ -6,25 +6,32 @@ import {
   FlatList,
   ActivityIndicator,
   TouchableOpacity,
+  TextInput,
+  Keyboard,
+  // TouchableWithoutFeedback est supprimé pour éviter les conflits de focus
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing } from "../styles/theme";
 import { getAllRestaurants } from "../services/Database";
-// Assurez-vous d'importer correctement le composant créé ci-dessus
-import { RestaurantCard } from "../components/RestaurantCard"; 
+import { RestaurantCard } from "../components/RestaurantCard";
 
 interface SearchViewProps {
   onRestaurantSelect?: (restaurant: any) => void;
 }
 
 const ITEMS_PER_PAGE = 10;
+const MAX_SUGGESTIONS = 7;
 
 export const SearchView = ({ onRestaurantSelect }: SearchViewProps) => {
   const [allRestaurants, setAllRestaurants] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   
-  // État pour la pagination
+  // États pour la pagination
   const [currentPage, setCurrentPage] = useState(1);
+  
+  // États pour la recherche
+  const [searchText, setSearchText] = useState("");
+  const [isSearching, setIsSearching] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -33,7 +40,8 @@ export const SearchView = ({ onRestaurantSelect }: SearchViewProps) => {
   const loadData = async () => {
     try {
       const data = await getAllRestaurants();
-      setAllRestaurants(data);
+      // Petite sécurité : on s'assure que data est un tableau
+      setAllRestaurants(Array.isArray(data) ? data : []);
     } catch (e) {
       console.error(e);
     } finally {
@@ -41,17 +49,15 @@ export const SearchView = ({ onRestaurantSelect }: SearchViewProps) => {
     }
   };
 
-  // Calculer les données à afficher pour la page courante
+  // --- LOGIQUE PAGINATION ---
   const paginatedData = useMemo(() => {
     const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
     const endIndex = startIndex + ITEMS_PER_PAGE;
     return allRestaurants.slice(startIndex, endIndex);
   }, [currentPage, allRestaurants]);
 
-  // Calcul du nombre total de pages
   const totalPages = Math.ceil(allRestaurants.length / ITEMS_PER_PAGE);
 
-  // Fonctions de navigation
   const goToNextPage = () => {
     if (currentPage < totalPages) setCurrentPage((p) => p + 1);
   };
@@ -60,17 +66,64 @@ export const SearchView = ({ onRestaurantSelect }: SearchViewProps) => {
     if (currentPage > 1) setCurrentPage((p) => p - 1);
   };
 
-  // Rendu d'un item via le nouveau composant
-  const renderItem = ({ item }: { item: any }) => (
+  // --- LOGIQUE SUGGESTIONS (CORRIGÉE) ---
+  const suggestions = useMemo(() => {
+    if (!searchText || searchText.length < 3) return [];
+
+    const lowerText = searchText.toLowerCase();
+    
+    return allRestaurants
+      .filter((r) => {
+        // CORRECTION DU CRASH ICI :
+        // On vérifie que le nom existe avant de faire toLowerCase()
+        if (!r || !r.name) return false; 
+        return r.name.toLowerCase().includes(lowerText);
+      })
+      .slice(0, MAX_SUGGESTIONS);
+  }, [searchText, allRestaurants]);
+
+  const handleSearchChange = (text: string) => {
+    setSearchText(text);
+    setIsSearching(text.length >= 3);
+  };
+
+  const clearSearch = () => {
+    setSearchText("");
+    setIsSearching(false);
+    Keyboard.dismiss();
+  };
+
+  // --- RENDUS ---
+
+  const renderSuggestionItem = ({ item }: { item: any }) => (
+    <TouchableOpacity
+      style={styles.suggestionItem}
+      onPress={() => {
+        Keyboard.dismiss(); // On ferme le clavier quand on choisit
+        onRestaurantSelect && onRestaurantSelect(item);
+      }}
+    >
+      <Ionicons name="search-outline" size={20} color={colors.inactive} />
+      <View style={styles.suggestionTextContainer}>
+        {/* Sécurité d'affichage si le nom est manquant */}
+        <Text style={styles.suggestionTitle}>{item.name || "Restaurant sans nom"}</Text>
+        <Text style={styles.suggestionSubtitle}>
+             {item.cuisines || item.type || "Type inconnu"}
+        </Text>
+      </View>
+      <Ionicons name="chevron-forward" size={18} color="#ccc" />
+    </TouchableOpacity>
+  );
+
+  const renderCardItem = ({ item }: { item: any }) => (
     <RestaurantCard 
       restaurant={item}
       onPress={() => onRestaurantSelect && onRestaurantSelect(item)}
     />
   );
 
-  // Composant de pied de page (Pagination)
-  const renderFooter = () => {
-    if (totalPages <= 1) return <View style={{ height: 20 }} />;
+  const renderPaginationFooter = () => {
+    if (totalPages <= 1 || isSearching) return <View style={{ height: 20 }} />;
 
     return (
       <View style={styles.paginationContainer}>
@@ -83,7 +136,7 @@ export const SearchView = ({ onRestaurantSelect }: SearchViewProps) => {
         </TouchableOpacity>
 
         <Text style={styles.pageText}>
-          Page {currentPage} <Text style={styles.pageTextTotal}>/ {totalPages}</Text>
+          {currentPage} <Text style={styles.pageTextTotal}>/ {totalPages}</Text>
         </Text>
 
         <TouchableOpacity
@@ -105,35 +158,72 @@ export const SearchView = ({ onRestaurantSelect }: SearchViewProps) => {
     );
   }
 
+  // NOTE: On a retiré le TouchableWithoutFeedback qui bloquait l'input
   return (
-    <View style={styles.container}>
-      {/* En-tête de la page */}
-      <View style={styles.header}>
-        <View style={styles.titleRow}>
-            <Ionicons name="search" size={28} color={colors.primary} />
-            <Text style={styles.headerTitle}>Recherche</Text>
-        </View>
-        <Text style={styles.subtitle}>
-            {allRestaurants.length} restaurants trouvés
-        </Text>
-      </View>
+      <View style={styles.container}>
+        {/* --- HEADER --- */}
+        <View style={styles.header}>
+          <View style={styles.searchBarContainer}>
+            <Ionicons name="search" size={20} color={colors.primary} style={{ marginRight: 8 }} />
+            
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Rechercher un restaurant..."
+              placeholderTextColor="#999"
+              value={searchText}
+              onChangeText={handleSearchChange}
+              autoCapitalize="none"
+              // Important pour UX mobile
+              returnKeyType="search" 
+              onSubmitEditing={Keyboard.dismiss}
+            />
 
-      {/* Liste des restaurants */}
-      <FlatList
-        data={paginatedData}
-        renderItem={renderItem}
-        keyExtractor={(item) => item.id.toString()}
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-        // Ajout du footer pour la pagination
-        ListFooterComponent={renderFooter}
-        // Optionnel : remonter en haut de la liste quand on change de page
-        onContentSizeChange={() => {
-            // Cette astuce dépend de la ref, mais pour une pagination simple
-            // l'utilisateur voit le changement immédiatement.
-        }}
-      />
-    </View>
+            {searchText.length > 0 && (
+              <TouchableOpacity onPress={clearSearch} hitSlop={{top: 10, bottom: 10, left: 10, right: 10}}>
+                <Ionicons name="close-circle" size={20} color="#999" />
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {!isSearching && (
+            <Text style={styles.subtitle}>
+              {allRestaurants.length} restaurants trouvés
+            </Text>
+          )}
+        </View>
+
+        {/* --- CONTENU --- */}
+        
+        {isSearching ? (
+          <View style={styles.suggestionsContainer}>
+            <Text style={styles.suggestionsHeader}>Suggestions</Text>
+            {suggestions.length > 0 ? (
+              <FlatList
+                data={suggestions}
+                renderItem={renderSuggestionItem}
+                // Sécurité sur l'ID
+                keyExtractor={(item, index) => item.id ? item.id.toString() : index.toString()}
+                keyboardShouldPersistTaps="handled" // Permet de cliquer sur la liste sans fermer le clavier d'abord
+              />
+            ) : (
+              <View style={styles.emptySearch}>
+                <Text style={styles.emptyText}>Aucun résultat pour "{searchText}"</Text>
+              </View>
+            )}
+          </View>
+        ) : (
+          <FlatList
+            data={paginatedData}
+            renderItem={renderCardItem}
+            keyExtractor={(item, index) => item.id ? item.id.toString() : index.toString()}
+            contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={false}
+            ListFooterComponent={renderPaginationFooter}
+            // Permet de scroller pour fermer le clavier
+            keyboardDismissMode="on-drag"
+          />
+        )}
+      </View>
   );
 };
 
@@ -148,34 +238,37 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: spacing.large,
-    paddingTop: spacing.large,
+    paddingTop: 50, 
     paddingBottom: spacing.medium,
     backgroundColor: "#fff",
     borderBottomWidth: 1,
     borderBottomColor: "#eee",
   },
-  titleRow: {
-    flexDirection: "row", 
-    alignItems: "center", 
-    gap: 10,
-    marginBottom: 4
+  searchBarContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#f0f2f5",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    height: 44,
   },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: "800",
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
     color: colors.text,
+    height: "100%",
+    paddingVertical: 0, // Fix pour centrage texte Android
   },
   subtitle: {
-    fontSize: 14,
+    fontSize: 12,
     color: "#888",
-    marginLeft: 38 // pour s'aligner sous le texte du titre
+    marginTop: 8,
+    marginLeft: 4
   },
   listContent: {
     padding: spacing.medium,
     paddingBottom: 40,
   },
-  
-  // Styles Pagination
   paginationContainer: {
     flexDirection: "row",
     justifyContent: "center",
@@ -185,28 +278,23 @@ const styles = StyleSheet.create({
     gap: 20,
   },
   pageButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: "#fff",
     justifyContent: "center",
     alignItems: "center",
-    // Ombre bouton
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
     borderWidth: 1,
     borderColor: "#eee",
+    elevation: 1,
   },
   pageButtonDisabled: {
-    backgroundColor: "#f5f5f5",
-    elevation: 0,
+    backgroundColor: "#f9f9f9",
     borderColor: "#f0f0f0",
+    elevation: 0,
   },
   pageText: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: "700",
     color: colors.text,
   },
@@ -214,4 +302,45 @@ const styles = StyleSheet.create({
     color: "#888",
     fontWeight: "400",
   },
+  suggestionsContainer: {
+    flex: 1,
+    paddingHorizontal: spacing.large,
+    paddingTop: spacing.medium,
+  },
+  suggestionsHeader: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#888",
+    marginBottom: 10,
+    textTransform: 'uppercase',
+    letterSpacing: 1
+  },
+  suggestionItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#eee",
+  },
+  suggestionTextContainer: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  suggestionTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: colors.text,
+  },
+  suggestionSubtitle: {
+    fontSize: 13,
+    color: "#888",
+  },
+  emptySearch: {
+    paddingTop: 40,
+    alignItems: 'center'
+  },
+  emptyText: {
+    color: "#888",
+    fontStyle: 'italic'
+  }
 });
