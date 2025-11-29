@@ -72,18 +72,30 @@ export const SearchView = ({ onRestaurantSelect }: SearchViewProps) => {
   }, [selectedCategories.length, takeawayOnly, onSiteOnly, useLocationFilter]);
 
   const categoryOptions = useMemo(() => {
-    const set = new Set<string>();
+    const counts = new Map<string, number>();
+
+    const addCategory = (val?: string | number | null) => {
+      if (!val) return;
+      const normalized = String(val).trim();
+      if (!normalized) return;
+      counts.set(normalized, (counts.get(normalized) || 0) + 1);
+    };
+
     allRestaurants.forEach((r) => {
-      if (r?.type) set.add(String(r.type));
+      addCategory(r?.type);
       if (r?.cuisines) {
         String(r.cuisines)
           .split(",")
           .map((c) => c.trim())
           .filter(Boolean)
-          .forEach((c) => set.add(c));
+          .forEach(addCategory);
       }
     });
-    return Array.from(set).slice(0, 24).sort((a, b) => a.localeCompare(b));
+
+    return Array.from(counts.entries())
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .slice(0, 10)
+      .map(([cat]) => cat);
   }, [allRestaurants]);
 
   const formatLabel = (value: string) =>
@@ -423,7 +435,7 @@ export const SearchView = ({ onRestaurantSelect }: SearchViewProps) => {
         </View>
 
         <View style={styles.filterRow}>
-          <Text style={styles.filterLabel}>Styles du JSON</Text>
+          <Text style={styles.filterLabel}>Type de cuisine</Text>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
