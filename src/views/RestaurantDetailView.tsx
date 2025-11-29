@@ -1,105 +1,181 @@
-import React from "react";
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Linking } from "react-native";
+import React, { useMemo } from "react";
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  ScrollView, 
+  TouchableOpacity, 
+  Linking, 
+  Image,
+  useWindowDimensions, // <--- AJOUTÉ
+  Platform
+} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing } from "../styles/theme";
 
-// Définition des props attendues par la vue
+// --- MAPPING DES IMAGES ---
+const CATEGORY_IMAGES: Record<string, any> = {
+  "francais": require("../../assets/imagescover/francais.png"),
+  "pizza": require("../../assets/imagescover/pizza.png"),
+  "japonais": require("../../assets/imagescover/japonais.png"),
+  "italien": require("../../assets/imagescover/italien.png"),
+  "burger": require("../../assets/imagescover/burger.png"),
+  "asiatique": require("../../assets/imagescover/asiatique.png"),
+  "kebab": require("../../assets/imagescover/kebab.png"),
+  "chinois": require("../../assets/imagescover/chinois.png"),
+  "sandwich": require("../../assets/imagescover/sandwich.png"),
+  "cafe": require("../../assets/imagescover/cafe.png"),
+  "asie_du_sud": require("../../assets/imagescover/asie_du_sud.png"),
+  "creperie": require("../../assets/imagescover/creperie.png"),
+  "thai": require("../../assets/imagescover/thai.png"),
+  "poulet": require("../../assets/imagescover/poulet.png"),
+  "vietnamien": require("../../assets/imagescover/vietnamien.png"),
+  "middle_eastern": require("../../assets/imagescover/middle_eastern.png"),
+  "oriental": require("../../assets/imagescover/oriental.png"),
+  "healthy": require("../../assets/imagescover/healthy.png"),
+  "latino": require("../../assets/imagescover/latino.png"),
+  "coreen": require("../../assets/imagescover/coreen.png"),
+  "turkish": require("../../assets/imagescover/turkish.png"),
+  "grill": require("../../assets/imagescover/grill.png"),
+  "patisserie": require("../../assets/imagescover/patisserie.png"),
+  "europeen": require("../../assets/imagescover/europeen.png"),
+  "fast_food": require("../../assets/imagescover/fast_food.png"),
+  "africain": require("../../assets/imagescover/africain.png"),
+  "bubble_tea": require("../../assets/imagescover/bubble_tea.png"),
+  "fruits_de_mer": require("../../assets/imagescover/fruits_de_mer.png"),
+  "americain": require("../../assets/imagescover/americain.png"), 
+  "divers": require("../../assets/imagescover/divers.png"),
+  "mediterranean": require("../../assets/imagescover/mediterranean.png"),
+  "grec": require("../../assets/imagescover/grec.png"),
+  "espagnol": require("../../assets/imagescover/espagnol.png"),
+  "tacos": require("../../assets/imagescover/tacos.png"),
+  "creole": require("../../assets/imagescover/creole.png"),
+  "balkans": require("../../assets/imagescover/balkans.png"),
+  "bar": require("../../assets/imagescover/bar.png"),
+};
+
 interface RestaurantDetailProps {
   restaurant: any;
   onBack: () => void;
 }
 
-// NOTEZ LE "export const" ICI (C'est ce qui corrige l'erreur)
 export const RestaurantDetailView = ({ restaurant, onBack }: RestaurantDetailProps) => {
+  // --- RESPONSIVE LOGIC ---
+  const { width } = useWindowDimensions();
+  const isLargeScreen = width > 768; // On considère PC/Tablette au-dessus de 768px
 
-  // Fonction utilitaire pour ouvrir les liens externes
+  // --- LOGIQUE IMAGE ---
+  const imageSource = useMemo(() => {
+    if (!restaurant) return null;
+    let candidates: string[] = [];
+    if (restaurant.cuisines) {
+      candidates = [...candidates, ...String(restaurant.cuisines).split(",")];
+    }
+    if (restaurant.type) {
+      candidates.push(String(restaurant.type));
+    }
+
+    for (const rawKey of candidates) {
+      const cleanKey = rawKey.trim().toLowerCase().replace(/ /g, "_").replace(/-/g, "_");
+      if (CATEGORY_IMAGES[cleanKey]) return CATEGORY_IMAGES[cleanKey];
+    }
+    return null;
+  }, [restaurant]);
+
+  // Fonction utilitaire
   const openLink = (type: 'tel' | 'web' | 'map') => {
     let url = '';
-    
-    // Appel téléphonique
-    if (type === 'tel' && restaurant.phone) {
-        url = `tel:${restaurant.phone.replace(/\s/g, '')}`;
-    }
-    
-    // Site Web
-    if (type === 'web' && restaurant.website) {
-        url = restaurant.website;
-    }
-    
-    // GPS (Google Maps / Apple Plans)
+    if (type === 'tel' && restaurant.phone) url = `tel:${restaurant.phone.replace(/\s/g, '')}`;
+    if (type === 'web' && restaurant.website) url = restaurant.website;
     if (type === 'map') {
       const label = encodeURIComponent(restaurant.name);
-      // Format universel pour mobile
       url = `geo:0,0?q=${restaurant.lat},${restaurant.lon}(${label})`;
     }
-
-    if (url) {
-        Linking.openURL(url).catch(err => console.error("Erreur ouverture lien", err));
-    } else {
-        console.warn("Lien indisponible pour", type);
-    }
+    if (url) Linking.openURL(url).catch(err => console.error("Erreur", err));
   };
 
   return (
-    <View style={styles.container}>
-      {/* --- HEADER : Image Placeholder + Bouton Retour --- */}
-      <View style={styles.imageContainer}>
-        <View style={styles.placeholderImage}>
-          <Ionicons name="restaurant" size={60} color="#fff" />
-        </View>
-        <TouchableOpacity style={styles.backButton} onPress={onBack} activeOpacity={0.8}>
-          <Ionicons name="arrow-back" size={24} color="#000" />
-        </TouchableOpacity>
-      </View>
-
-      <ScrollView contentContainerStyle={styles.content}>
-        {/* --- TITRE ET TYPE --- */}
-        <Text style={styles.title}>{restaurant.name}</Text>
-        <Text style={styles.subtitle}>
-          {restaurant.type?.replace('_', ' ')} • {restaurant.cuisines ? restaurant.cuisines.replace(',', ', ') : "Cuisine variée"}
-        </Text>
-
-        {/* --- TAGS (Végétarien, etc.) --- */}
-        <View style={styles.tagsRow}>
-          {restaurant.vegetarian === 1 && <Tag icon="leaf" label="Végétarien" color="green" />}
-          {restaurant.vegan === 1 && <Tag icon="nutrition" label="Végan" color="green" />}
-          {restaurant.takeaway === 1 && <Tag icon="basket" label="A emporter" color="orange" />}
-        </View>
-
-        <View style={styles.divider} />
-
-        {/* --- INFORMATIONS PRATIQUES --- */}
-        <InfoRow icon="location" text={`${restaurant.lat?.toFixed(5)}, ${restaurant.lon?.toFixed(5)}`} />
+    // ROOT : Prend tout l'écran, couleur de fond neutre
+    <View style={styles.rootContainer}>
+      
+      {/* CENTRAGE : Sur PC, on centre tout le contenu dans une boite de max 900px */}
+      <View style={[styles.mainContainer, isLargeScreen && styles.mainContainerWeb]}>
         
-        {restaurant.phone && (
-            <InfoRow icon="call" text={restaurant.phone} onPress={() => openLink('tel')} isLink />
-        )}
-        
-        {restaurant.website && (
-            <InfoRow icon="globe" text="Visiter le site web" onPress={() => openLink('web')} isLink />
-        )}
-
-        {restaurant.opening_hours && (
-            <InfoRow icon="time" text={restaurant.opening_hours} />
-        )}
-
-        {/* --- BOUTONS D'ACTION (En bas) --- */}
-        <View style={styles.actionsRow}>
-          <ActionButton label="Y aller" icon="navigate" primary onPress={() => openLink('map')} />
-          {restaurant.phone && (
-            <ActionButton label="Appeler" icon="call" onPress={() => openLink('tel')} />
+        {/* --- HEADER IMAGE --- */}
+        <View style={[
+          styles.imageContainer, 
+          // Sur PC, on agrandit l'image et on arrondit les coins pour faire "Carte"
+          isLargeScreen && { height: 400, borderRadius: 16, marginTop: 20, overflow: 'hidden' }
+        ]}>
+          {imageSource ? (
+            <Image 
+              source={imageSource} 
+              style={styles.coverImage} 
+              resizeMode="cover" 
+            />
+          ) : (
+            <View style={styles.placeholderImage}>
+              <Ionicons name="restaurant" size={60} color="#fff" />
+            </View>
           )}
+
+          {/* Bouton retour */}
+          <TouchableOpacity style={styles.backButton} onPress={onBack} activeOpacity={0.8}>
+            <Ionicons name="arrow-back" size={24} color="#000" />
+          </TouchableOpacity>
         </View>
-        
-        {/* Espace vide pour scroller confortablement en bas */}
-        <View style={{ height: 40 }} />
-      </ScrollView>
+
+        {/* --- CONTENU DÉFILANT --- */}
+        <ScrollView 
+          contentContainerStyle={styles.content} 
+          showsVerticalScrollIndicator={false}
+        >
+          {/* TITRE ET TYPE */}
+          <Text style={styles.title}>{restaurant.name}</Text>
+          <Text style={styles.subtitle}>
+            {restaurant.type?.replace('_', ' ')} • {restaurant.cuisines ? restaurant.cuisines.replace(',', ', ') : "Cuisine variée"}
+          </Text>
+
+          {/* TAGS */}
+          <View style={styles.tagsRow}>
+            {restaurant.vegetarian === 1 && <Tag icon="leaf" label="Végétarien" color="green" />}
+            {restaurant.vegan === 1 && <Tag icon="nutrition" label="Végan" color="green" />}
+            {restaurant.takeaway === 1 && <Tag icon="basket" label="A emporter" color="orange" />}
+          </View>
+
+          <View style={styles.divider} />
+
+          {/* INFORMATIONS PRATIQUES */}
+          <InfoRow icon="location" text={`${restaurant.lat?.toFixed(5)}, ${restaurant.lon?.toFixed(5)}`} />
+          
+          {restaurant.phone && (
+              <InfoRow icon="call" text={restaurant.phone} onPress={() => openLink('tel')} isLink />
+          )}
+          
+          {restaurant.website && (
+              <InfoRow icon="globe" text="Visiter le site web" onPress={() => openLink('web')} isLink />
+          )}
+
+          {restaurant.opening_hours && (
+              <InfoRow icon="time" text={restaurant.opening_hours} />
+          )}
+
+          {/* BOUTONS D'ACTION */}
+          <View style={styles.actionsRow}>
+            <ActionButton label="Y aller" icon="navigate" primary onPress={() => openLink('map')} />
+            {restaurant.phone && (
+              <ActionButton label="Appeler" icon="call" onPress={() => openLink('tel')} />
+            )}
+          </View>
+          
+          <View style={{ height: 40 }} />
+        </ScrollView>
+      </View>
     </View>
   );
 };
 
-// --- PETITS COMPOSANTS INTERNES (Pour garder le code propre) ---
-
+// --- PETITS COMPOSANTS ---
 const Tag = ({ label, icon, color }: any) => (
   <View style={[styles.tag, { borderColor: color }]}>
     <Ionicons name={icon} size={14} color={color} />
@@ -129,35 +205,72 @@ const ActionButton = ({ label, icon, primary, onPress }: any) => (
 // --- STYLES ---
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#fff" },
-  
+  // Root prend tout l'écran
+  rootContainer: { 
+    flex: 1, 
+    backgroundColor: "#fff" // ou une couleur de fond grisée pour le web : #f9f9f9
+  },
+
+  // Conteneur principal qui s'adapte
+  mainContainer: {
+    flex: 1,
+    backgroundColor: "#fff",
+    width: "100%",
+  },
+  // Style spécifique PC : centré et limité en largeur
+  mainContainerWeb: {
+    alignSelf: "center",
+    maxWidth: 900, // Largeur max type "Site Web"
+    width: "100%",
+    // Optionnel : ajouter une ombre sur PC pour faire ressortir la "page"
+    // shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 20, elevation: 5
+  },
+
   // Header Image
-  imageContainer: { height: 200, backgroundColor: colors.primary },
-  placeholderImage: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#ddd' },
+  imageContainer: { 
+    height: 250, 
+    backgroundColor: colors.primary,
+    position: 'relative'
+  },
+  coverImage: {
+    width: '100%',
+    height: '100%',
+  },
+  placeholderImage: { 
+    flex: 1, 
+    alignItems: 'center', 
+    justifyContent: 'center', 
+    backgroundColor: '#ddd' 
+  },
   backButton: { 
-    position: 'absolute', top: 40, left: 20, 
-    backgroundColor: '#fff', padding: 8, borderRadius: 20, 
-    elevation: 5, shadowColor: '#000', shadowOffset: {width:0, height:2}, shadowOpacity:0.2, shadowRadius:2
+    position: 'absolute', 
+    top: Platform.OS === 'web' ? 20 : 50, // Ajustement safe area
+    left: 20, 
+    backgroundColor: '#fff', 
+    padding: 8, 
+    borderRadius: 20, 
+    elevation: 5, 
+    shadowColor: '#000', 
+    shadowOffset: {width:0, height:2}, 
+    shadowOpacity:0.2, 
+    shadowRadius:2,
+    zIndex: 10 
   },
 
   content: { padding: spacing.large || 20 },
   
-  // Textes
   title: { fontSize: 28, fontWeight: 'bold', color: colors.text, marginBottom: 4 },
   subtitle: { fontSize: 16, color: colors.inactive || '#888', marginBottom: 16, textTransform: 'capitalize' },
   
-  // Tags
   tagsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 },
   tag: { flexDirection: 'row', alignItems: 'center', gap: 4, borderWidth: 1, paddingVertical: 4, paddingHorizontal: 10, borderRadius: 20 },
   tagText: { fontSize: 12, fontWeight: '600' },
   
   divider: { height: 1, backgroundColor: '#eee', marginVertical: 16 },
   
-  // Infos
   infoRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 14 },
-  infoText: { fontSize: 16, color: colors.text, flex: 1 }, // flex:1 pour éviter que le texte sorte de l'écran
+  infoText: { fontSize: 16, color: colors.text, flex: 1 },
   
-  // Boutons
   actionsRow: { flexDirection: 'row', gap: 12, marginTop: 10 },
   actionButton: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 14, borderRadius: 12 },
   btnPrimary: { backgroundColor: colors.primary },
