@@ -8,12 +8,14 @@ import {
   TouchableOpacity,
   TextInput,
   Keyboard,
-  // TouchableWithoutFeedback est supprimé pour éviter les conflits de focus
+  ScrollView,
+  Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing } from "../styles/theme";
 import { getAllRestaurants } from "../services/Database";
 import { RestaurantCard } from "../components/RestaurantCard";
+import * as Location from "expo-location";
 
 interface SearchViewProps {
   onRestaurantSelect?: (restaurant: any) => void;
@@ -21,17 +23,25 @@ interface SearchViewProps {
 
 const ITEMS_PER_PAGE = 10;
 const MAX_SUGGESTIONS = 7;
+const RADIUS_OPTIONS = [2, 5, 10, 20];
 
 export const SearchView = ({ onRestaurantSelect }: SearchViewProps) => {
   const [allRestaurants, setAllRestaurants] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  
-  // États pour la pagination
+
   const [currentPage, setCurrentPage] = useState(1);
-  
-  // États pour la recherche
   const [searchText, setSearchText] = useState("");
   const [isSearching, setIsSearching] = useState(false);
+
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [takeawayOnly, setTakeawayOnly] = useState(false);
+  const [onSiteOnly, setOnSiteOnly] = useState(false);
+  const [useLocationFilter, setUseLocationFilter] = useState(false);
+  const [userLocation, setUserLocation] = useState<{ lat: number; lon: number } | null>(null);
+  const [radiusKm, setRadiusKm] = useState<number>(5);
+  const [locationError, setLocationError] = useState<string | null>(null);
+  const [requestingLocation, setRequestingLocation] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -40,7 +50,6 @@ export const SearchView = ({ onRestaurantSelect }: SearchViewProps) => {
   const loadData = async () => {
     try {
       const data = await getAllRestaurants();
-      // Petite sécurité : on s'assure que data est un tableau
       setAllRestaurants(Array.isArray(data) ? data : []);
     } catch (e) {
       console.error(e);
@@ -49,14 +58,109 @@ export const SearchView = ({ onRestaurantSelect }: SearchViewProps) => {
     }
   };
 
-  // --- LOGIQUE PAGINATION ---
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedCategories, takeawayOnly, onSiteOnly, useLocationFilter, radiusKm, userLocation]);
+
+  const activeFiltersCount = useMemo(() => {
+    let count = 0;
+    if (selectedCategories.length) count += selectedCategories.length;
+    if (takeawayOnly) count += 1;
+    if (onSiteOnly) count += 1;
+    if (useLocationFilter) count += 1;
+    return count;
+  }, [selectedCategories.length, takeawayOnly, onSiteOnly, useLocationFilter]);
+
+  const categoryOptions = useMemo(() => {
+    const set = new Set<string>();
+    allRestaurants.forEach((r) => {
+      if (r?.type) set.add(String(r.type));
+      if (r?.cuisines) {
+        String(r.cuisines)
+          .split(",")
+          .map((c) => c.trim())
+          .filter(Boolean)
+          .forEach((c) => set.add(c));
+      }
+    });
+    return Array.from(set).slice(0, 24).sort((a, b) => a.localeCompare(b));
+  }, [allRestaurants]);
+
+  const formatLabel = (value: string) =>
+    value
+      ? value
+          .replace(/_/g, " ")
+          .replace(/\b\w/g, (c) => c.toUpperCase())
+      : "";
+
+  const getDistanceFromLatLonInKm = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+    const R = 6371;
+    const dLat = ((lat2 - lat1) * Math.PI) / 180;
+    const dLon = ((lon2 - lon1) * Math.PI) / 180;
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos((lat1 * Math.PI) / 180) *
+        Math.cos((lat2 * Math.PI) / 180) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  };
+
+  const filteredRestaurants = useMemo(() => {
+    return allRestaurants.filter((resto) => {
+      const typeValue = (resto.type || "").toString().toLowerCase();
+      const cuisinesValue = (resto.cuisines || "").toString().toLowerCase();
+
+      if (selectedCategories.length) {
+        const matchesCategory = selectedCategories.some((cat) => {
+          const target = cat.toLowerCase();
+          return typeValue === target || cuisinesValue.includes(target);
+        });
+        if (!matchesCategory) return false;
+      }
+
+      const takeawayValue = resto.takeaway;
+      const hasTakeaway =
+        takeawayValue === 1 ||
+        takeawayValue === true ||
+        (typeof takeawayValue === "string" &&
+          ["yes", "only", "true"].includes(takeawayValue.toLowerCase())) ||
+        typeValue === "fast_food";
+
+      if (takeawayOnly && !hasTakeaway) return false;
+
+      const offersOnSite =
+        typeof takeawayValue === "string"
+          ? takeawayValue.toLowerCase() !== "only"
+          : true;
+      if (onSiteOnly && !offersOnSite) return false;
+
+      if (useLocationFilter) {
+        if (!userLocation || typeof resto.lat !== "number" || typeof resto.lon !== "number") return false;
+        const distance = getDistanceFromLatLonInKm(userLocation.lat, userLocation.lon, resto.lat, resto.lon);
+        return distance <= radiusKm;
+      }
+
+      return true;
+    });
+  }, [
+    allRestaurants,
+    selectedCategories,
+    takeawayOnly,
+    onSiteOnly,
+    useLocationFilter,
+    userLocation,
+    radiusKm,
+  ]);
+
   const paginatedData = useMemo(() => {
     const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
     const endIndex = startIndex + ITEMS_PER_PAGE;
-    return allRestaurants.slice(startIndex, endIndex);
-  }, [currentPage, allRestaurants]);
+    return filteredRestaurants.slice(startIndex, endIndex);
+  }, [currentPage, filteredRestaurants]);
 
-  const totalPages = Math.ceil(allRestaurants.length / ITEMS_PER_PAGE);
+  const totalPages = Math.max(1, Math.ceil(filteredRestaurants.length / ITEMS_PER_PAGE));
 
   const goToNextPage = () => {
     if (currentPage < totalPages) setCurrentPage((p) => p + 1);
@@ -66,21 +170,15 @@ export const SearchView = ({ onRestaurantSelect }: SearchViewProps) => {
     if (currentPage > 1) setCurrentPage((p) => p - 1);
   };
 
-  // --- LOGIQUE SUGGESTIONS (CORRIGÉE) ---
   const suggestions = useMemo(() => {
     if (!searchText || searchText.length < 3) return [];
 
     const lowerText = searchText.toLowerCase();
-    
-    return allRestaurants
-      .filter((r) => {
-        // CORRECTION DU CRASH ICI :
-        // On vérifie que le nom existe avant de faire toLowerCase()
-        if (!r || !r.name) return false; 
-        return r.name.toLowerCase().includes(lowerText);
-      })
+
+    return filteredRestaurants
+      .filter((r) => r?.name && r.name.toLowerCase().includes(lowerText))
       .slice(0, MAX_SUGGESTIONS);
-  }, [searchText, allRestaurants]);
+  }, [searchText, filteredRestaurants]);
 
   const handleSearchChange = (text: string) => {
     setSearchText(text);
@@ -93,22 +191,58 @@ export const SearchView = ({ onRestaurantSelect }: SearchViewProps) => {
     Keyboard.dismiss();
   };
 
-  // --- RENDUS ---
+  const toggleCategory = (cat: string) => {
+    setSelectedCategories((prev) =>
+      prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat]
+    );
+  };
+
+  const requestLocation = async () => {
+    setLocationError(null);
+    setRequestingLocation(true);
+    try {
+      if (Platform.OS === "web" && typeof navigator !== "undefined" && navigator.geolocation) {
+        const coords = await new Promise<{ latitude: number; longitude: number }>((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(
+            (pos) => resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
+            (err) => reject(err),
+            { enableHighAccuracy: true, timeout: 7000 }
+          );
+        });
+        setUserLocation({ lat: coords.latitude, lon: coords.longitude });
+        setUseLocationFilter(true);
+      } else {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== "granted") {
+          setLocationError("Autorisation de géolocalisation refusée.");
+          setUseLocationFilter(false);
+          return;
+        }
+        const loc = await Location.getCurrentPositionAsync({});
+        setUserLocation({ lat: loc.coords.latitude, lon: loc.coords.longitude });
+        setUseLocationFilter(true);
+      }
+    } catch (err) {
+      setLocationError("Impossible de récupérer la position.");
+      setUseLocationFilter(false);
+    } finally {
+      setRequestingLocation(false);
+    }
+  };
 
   const renderSuggestionItem = ({ item }: { item: any }) => (
     <TouchableOpacity
       style={styles.suggestionItem}
       onPress={() => {
-        Keyboard.dismiss(); // On ferme le clavier quand on choisit
+        Keyboard.dismiss();
         onRestaurantSelect && onRestaurantSelect(item);
       }}
     >
       <Ionicons name="search-outline" size={20} color={colors.inactive} />
       <View style={styles.suggestionTextContainer}>
-        {/* Sécurité d'affichage si le nom est manquant */}
         <Text style={styles.suggestionTitle}>{item.name || "Restaurant sans nom"}</Text>
         <Text style={styles.suggestionSubtitle}>
-             {item.cuisines || item.type || "Type inconnu"}
+          {item.cuisines || item.type || "Type inconnu"}
         </Text>
       </View>
       <Ionicons name="chevron-forward" size={18} color="#ccc" />
@@ -116,7 +250,7 @@ export const SearchView = ({ onRestaurantSelect }: SearchViewProps) => {
   );
 
   const renderCardItem = ({ item }: { item: any }) => (
-    <RestaurantCard 
+    <RestaurantCard
       restaurant={item}
       onPress={() => onRestaurantSelect && onRestaurantSelect(item)}
     />
@@ -158,72 +292,203 @@ export const SearchView = ({ onRestaurantSelect }: SearchViewProps) => {
     );
   }
 
-  // NOTE: On a retiré le TouchableWithoutFeedback qui bloquait l'input
   return (
-      <View style={styles.container}>
-        {/* --- HEADER --- */}
-        <View style={styles.header}>
-          <View style={styles.searchBarContainer}>
-            <Ionicons name="search" size={20} color={colors.primary} style={{ marginRight: 8 }} />
-            
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Rechercher un restaurant..."
-              placeholderTextColor="#999"
-              value={searchText}
-              onChangeText={handleSearchChange}
-              autoCapitalize="none"
-              // Important pour UX mobile
-              returnKeyType="search" 
-              onSubmitEditing={Keyboard.dismiss}
-            />
+    <View style={styles.container}>
+      <View style={styles.header}>
+        <View style={styles.searchBarContainer}>
+          <Ionicons name="search" size={20} color={colors.primary} style={{ marginRight: 8 }} />
 
-            {searchText.length > 0 && (
-              <TouchableOpacity onPress={clearSearch} hitSlop={{top: 10, bottom: 10, left: 10, right: 10}}>
-                <Ionicons name="close-circle" size={20} color="#999" />
-              </TouchableOpacity>
-            )}
-          </View>
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Rechercher un restaurant..."
+            placeholderTextColor="#999"
+            value={searchText}
+            onChangeText={handleSearchChange}
+            autoCapitalize="none"
+            returnKeyType="search"
+            onSubmitEditing={Keyboard.dismiss}
+          />
 
-          {!isSearching && (
-            <Text style={styles.subtitle}>
-              {allRestaurants.length} restaurants trouvés
-            </Text>
+          {searchText.length > 0 && (
+            <TouchableOpacity onPress={clearSearch} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Ionicons name="close-circle" size={20} color="#999" />
+            </TouchableOpacity>
           )}
         </View>
 
-        {/* --- CONTENU --- */}
-        
-        {isSearching ? (
-          <View style={styles.suggestionsContainer}>
-            <Text style={styles.suggestionsHeader}>Suggestions</Text>
-            {suggestions.length > 0 ? (
-              <FlatList
-                data={suggestions}
-                renderItem={renderSuggestionItem}
-                // Sécurité sur l'ID
-                keyExtractor={(item, index) => item.id ? item.id.toString() : index.toString()}
-                keyboardShouldPersistTaps="handled" // Permet de cliquer sur la liste sans fermer le clavier d'abord
+        {!isSearching && (
+          <View style={styles.headerRow}>
+            <Text style={styles.subtitle}>
+              {filteredRestaurants.length} restaurants trouvés avec vos filtres
+            </Text>
+            <TouchableOpacity
+              style={[styles.filterToggle, showFilters && styles.filterToggleActive]}
+              onPress={() => setShowFilters((v) => !v)}
+            >
+              <Ionicons
+                name="options-outline"
+                size={16}
+                color={showFilters ? "#fff" : colors.text}
+                style={{ marginRight: 6 }}
               />
-            ) : (
-              <View style={styles.emptySearch}>
-                <Text style={styles.emptyText}>Aucun résultat pour "{searchText}"</Text>
-              </View>
-            )}
+              <Text style={[styles.filterToggleText, showFilters && styles.filterToggleTextActive]}>
+                Filtres {activeFiltersCount ? `(${activeFiltersCount})` : ""}
+              </Text>
+              <Ionicons
+                name={showFilters ? "chevron-up" : "chevron-down"}
+                size={16}
+                color={showFilters ? "#fff" : colors.text}
+                style={{ marginLeft: 4 }}
+              />
+            </TouchableOpacity>
           </View>
-        ) : (
-          <FlatList
-            data={paginatedData}
-            renderItem={renderCardItem}
-            keyExtractor={(item, index) => item.id ? item.id.toString() : index.toString()}
-            contentContainerStyle={styles.listContent}
-            showsVerticalScrollIndicator={false}
-            ListFooterComponent={renderPaginationFooter}
-            // Permet de scroller pour fermer le clavier
-            keyboardDismissMode="on-drag"
-          />
         )}
       </View>
+
+      {showFilters && (
+        <View style={styles.filtersContainer}>
+        <View style={styles.filterRow}>
+          <Text style={styles.filterLabel}>Autour de moi</Text>
+          <View style={styles.chipsRow}>
+            <TouchableOpacity
+              style={[styles.chip, useLocationFilter && styles.chipActive]}
+              onPress={() => {
+                if (useLocationFilter) {
+                  setUseLocationFilter(false);
+                } else {
+                  requestLocation();
+                }
+              }}
+            >
+              <Ionicons
+                name={useLocationFilter ? "location" : "location-outline"}
+                size={14}
+                color={useLocationFilter ? "#fff" : colors.text}
+                style={{ marginRight: 6 }}
+              />
+              <Text style={[styles.chipText, useLocationFilter && styles.chipTextActive]}>Activer</Text>
+            </TouchableOpacity>
+
+            {useLocationFilter && (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.chipsRow}
+              >
+                {RADIUS_OPTIONS.map((opt) => {
+                  const active = radiusKm === opt;
+                  return (
+                    <TouchableOpacity
+                      key={opt}
+                      style={[styles.chip, active && styles.chipActive]}
+                      onPress={() => setRadiusKm(opt)}
+                    >
+                      <Text style={[styles.chipText, active && styles.chipTextActive]}>{opt} km</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            )}
+          </View>
+        </View>
+
+        <View style={styles.filterRow}>
+          <Text style={styles.filterLabel}>Service</Text>
+          <View style={styles.chipsRow}>
+            <TouchableOpacity
+              style={[styles.chip, takeawayOnly && styles.chipActive]}
+              onPress={() => setTakeawayOnly((v) => !v)}
+            >
+              <Ionicons
+                name="bag-handle-outline"
+                size={14}
+                color={takeawayOnly ? "#fff" : colors.text}
+                style={{ marginRight: 6 }}
+              />
+              <Text style={[styles.chipText, takeawayOnly && styles.chipTextActive]}>À emporter</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.chip, onSiteOnly && styles.chipActive]}
+              onPress={() => setOnSiteOnly((v) => !v)}
+            >
+              <Ionicons
+                name="restaurant-outline"
+                size={14}
+                color={onSiteOnly ? "#fff" : colors.text}
+                style={{ marginRight: 6 }}
+              />
+              <Text style={[styles.chipText, onSiteOnly && styles.chipTextActive]}>Sur place</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <View style={styles.filterRow}>
+          <Text style={styles.filterLabel}>Styles du JSON</Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.chipsRow}
+          >
+            {categoryOptions.map((cat) => {
+              const active = selectedCategories.includes(cat);
+              return (
+                <TouchableOpacity
+                  key={cat}
+                  onPress={() => toggleCategory(cat)}
+                  style={[styles.chip, active && styles.chipActive]}
+                >
+                  <Text style={[styles.chipText, active && styles.chipTextActive]}>
+                    {formatLabel(cat)}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        </View>
+
+          {locationError ? <Text style={styles.errorText}>{locationError}</Text> : null}
+          {requestingLocation && (
+            <View style={styles.locatingRow}>
+              <ActivityIndicator size="small" color={colors.primary} />
+              <Text style={styles.locatingText}>Recherche de votre position...</Text>
+            </View>
+          )}
+        </View>
+      )}
+
+      {isSearching ? (
+        <View style={styles.suggestionsContainer}>
+          <Text style={styles.suggestionsHeader}>Suggestions</Text>
+          {suggestions.length > 0 ? (
+            <FlatList
+              data={suggestions}
+              renderItem={renderSuggestionItem}
+              keyExtractor={(item, index) => (item.id ? item.id.toString() : index.toString())}
+              keyboardShouldPersistTaps="handled"
+            />
+          ) : (
+            <View style={styles.emptySearch}>
+              <Text style={styles.emptyText}>Aucun résultat pour "{searchText}"</Text>
+            </View>
+          )}
+        </View>
+      ) : (
+        <FlatList
+          data={paginatedData}
+          renderItem={renderCardItem}
+          keyExtractor={(item, index) => (item.id ? item.id.toString() : index.toString())}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          ListFooterComponent={renderPaginationFooter}
+          keyboardDismissMode="on-drag"
+          ListEmptyComponent={
+            <View style={styles.emptySearch}>
+              <Text style={styles.emptyText}>Aucun restaurant ne correspond à vos filtres.</Text>
+            </View>
+          }
+        />
+      )}
+    </View>
   );
 };
 
@@ -238,7 +503,7 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: spacing.large,
-    paddingTop: 50, 
+    paddingTop: 50,
     paddingBottom: spacing.medium,
     backgroundColor: "#fff",
     borderBottomWidth: 1,
@@ -257,13 +522,79 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.text,
     height: "100%",
-    paddingVertical: 0, // Fix pour centrage texte Android
+    paddingVertical: 0,
   },
   subtitle: {
     fontSize: 12,
     color: "#888",
     marginTop: 8,
-    marginLeft: 4
+    marginLeft: 4,
+  },
+  headerRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 10,
+  },
+  filterToggle: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 14,
+    backgroundColor: "#f0f2f5",
+  },
+  filterToggleActive: {
+    backgroundColor: colors.primary,
+  },
+  filterToggleText: {
+    color: colors.text,
+    fontWeight: "700",
+    fontSize: 12,
+  },
+  filterToggleTextActive: {
+    color: "#fff",
+  },
+  filtersContainer: {
+    paddingHorizontal: spacing.large,
+    paddingVertical: spacing.medium,
+    backgroundColor: "#fff",
+    borderBottomWidth: 1,
+    borderBottomColor: "#eee",
+    gap: spacing.medium,
+  },
+  filterRow: {
+    gap: spacing.small,
+  },
+  filterLabel: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: colors.text,
+  },
+  chipsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  chip: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 14,
+    backgroundColor: "#f0f2f5",
+  },
+  chipActive: {
+    backgroundColor: colors.primary,
+  },
+  chipText: {
+    color: colors.text,
+    fontWeight: "700",
+    fontSize: 12,
+  },
+  chipTextActive: {
+    color: "#fff",
   },
   listContent: {
     padding: spacing.medium,
@@ -312,8 +643,8 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#888",
     marginBottom: 10,
-    textTransform: 'uppercase',
-    letterSpacing: 1
+    textTransform: "uppercase",
+    letterSpacing: 1,
   },
   suggestionItem: {
     flexDirection: "row",
@@ -337,10 +668,24 @@ const styles = StyleSheet.create({
   },
   emptySearch: {
     paddingTop: 40,
-    alignItems: 'center'
+    alignItems: "center",
   },
   emptyText: {
     color: "#888",
-    fontStyle: 'italic'
-  }
+    fontStyle: "italic",
+    textAlign: "center",
+  },
+  errorText: {
+    color: "#d14343",
+    fontSize: 12,
+  },
+  locatingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  locatingText: {
+    color: colors.text,
+    fontSize: 13,
+  },
 });
