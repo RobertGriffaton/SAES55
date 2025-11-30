@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { UserPreferences } from '../models/PreferencesModel';
 
-// Clés de stockage pour les données personnalisées
+// Clés de stockage
 const DB_KEY_CUSTOM = 'food_reco_db_custom_v1';
 const DB_USERS_KEY = 'food_reco_users_v1';
 
@@ -22,7 +22,7 @@ const staticData = (Array.isArray(rawData) ? rawData : (rawData.restaurants || [
 // --- API PUBLIQUE ---
 
 export const initDatabase = async () => {
-  console.log(`[Web DB] ${staticData.length} restaurants chargés en mémoire (Lecture seule).`);
+  console.log(`[Web DB] ${staticData.length} restaurants chargés en mémoire (lecture seule).`);
   try {
     const custom = await AsyncStorage.getItem(DB_KEY_CUSTOM);
     if (custom) console.log("[Web DB] Données utilisateur personnalisées trouvées.");
@@ -41,8 +41,6 @@ export const searchRestaurants = async (prefs: UserPreferences) => {
   }
 
   const allRestaurants = [...staticData, ...customData];
-
-  console.log(`[Recherche Web] Filtrage parmi ${allRestaurants.length} restaurants...`);
 
   const results = allRestaurants.filter((r: any) => {
     if (prefs.cuisines.length > 0) {
@@ -94,11 +92,46 @@ export const createUser = async (username: string, avatar: string = "default") =
   }
 };
 
+const normalizeId = (val: any) => String(val ?? "").trim();
+
+export const updateUserName = async (id: number, username: string) => {
+  try {
+    const json = await AsyncStorage.getItem(DB_USERS_KEY);
+    const users = json ? JSON.parse(json) : [];
+    const target = normalizeId(id);
+    const index = users.findIndex((u: any) => normalizeId(u.id) === target);
+    if (index === -1) return false;
+    users[index].username = username;
+    await AsyncStorage.setItem(DB_USERS_KEY, JSON.stringify(users));
+    return true;
+  } catch (e) {
+    console.error("Erreur mise à jour user web:", e);
+    return false;
+  }
+};
+
+export const updateUserAvatar = async (id: number, avatar: string) => {
+  try {
+    const json = await AsyncStorage.getItem(DB_USERS_KEY);
+    const users = json ? JSON.parse(json) : [];
+    const target = normalizeId(id);
+    const index = users.findIndex((u: any) => normalizeId(u.id) === target);
+    if (index === -1) return false;
+    users[index].avatar = avatar;
+    await AsyncStorage.setItem(DB_USERS_KEY, JSON.stringify(users));
+    return true;
+  } catch (e) {
+    console.error("Erreur mise à jour avatar web:", e);
+    return false;
+  }
+};
+
 export const getUser = async (id: number) => {
   try {
     const json = await AsyncStorage.getItem(DB_USERS_KEY);
     const users = json ? JSON.parse(json) : [];
-    return users.find((u: any) => u.id === id) || null;
+    const target = normalizeId(id);
+    return users.find((u: any) => normalizeId(u.id) === target) || null;
   } catch (e) {
     return null;
   }
@@ -110,6 +143,20 @@ export const getAllUsers = async () => {
     return json ? JSON.parse(json) : [];
   } catch (e) {
     return [];
+  }
+};
+
+export const deleteUser = async (id: number) => {
+  try {
+    const json = await AsyncStorage.getItem(DB_USERS_KEY);
+    const users = json ? JSON.parse(json) : [];
+    const target = normalizeId(id);
+    const filtered = users.filter((u: any) => normalizeId(u.id) !== target);
+    await AsyncStorage.setItem(DB_USERS_KEY, JSON.stringify(filtered));
+    return filtered.length !== users.length;
+  } catch (e) {
+    console.error("Erreur suppression user web:", e);
+    return false;
   }
 };
 

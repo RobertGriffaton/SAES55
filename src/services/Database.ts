@@ -26,11 +26,23 @@ export const createUser = async (username: string, avatar?: string): Promise<num
   return Promise.resolve(null);
 };
 
+export const updateUserName = async (id: number, username: string): Promise<boolean> => {
+  return Promise.resolve(false);
+};
+
+export const updateUserAvatar = async (id: number, avatar: string): Promise<boolean> => {
+  return Promise.resolve(false);
+};
+
 export const getUser = async (id: number): Promise<any> => {
   return Promise.resolve(null);
 };
 
 export const getAllUsers = async (): Promise<any[]> => {
   return Promise.resolve([]);
+};
+
+export const deleteUser = async (id: number): Promise<boolean> => {
+  return Promise.resolve(false);
 };
 

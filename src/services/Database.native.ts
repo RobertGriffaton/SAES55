@@ -2,7 +2,6 @@ import * as SQLite from 'expo-sqlite';
 import { UserPreferences } from '../models/PreferencesModel';
 
 // 1. IMPORT ET PRÉPARATION DES DONNÉES JSON
-// On utilise 'require' pour charger le fichier localement
 const rawData = require('../data/restaurants.json');
 
 // Sécurisation : on récupère le tableau qu'il soit direct ou dans une clé "restaurants"
@@ -152,10 +151,7 @@ export const getAllRestaurants = async () => {
 // Fonction optimisée pour la Carte (Bounding Box)
 export const getRestaurantsNearby = async (userLat: number, userLon: number, radiusKm: number) => {
   try {
-    // 1. Calcul d'un carré autour de l'utilisateur (plus rapide que le calcul de cercle SQL)
-    // 1 degré de latitude ~= 111 km
     const latDelta = radiusKm / 111;
-    // Correction longitude selon la latitude
     const lonDelta = radiusKm / (111 * Math.cos(userLat * (Math.PI / 180)));
 
     const minLat = userLat - latDelta;
@@ -163,7 +159,6 @@ export const getRestaurantsNearby = async (userLat: number, userLon: number, rad
     const minLon = userLon - lonDelta;
     const maxLon = userLon + lonDelta;
 
-    // 2. Requête SQL rapide
     const candidates = await db.getAllAsync(
       `SELECT * FROM restaurants 
        WHERE lat BETWEEN ? AND ? 
@@ -171,7 +166,6 @@ export const getRestaurantsNearby = async (userLat: number, userLon: number, rad
       [minLat, maxLat, minLon, maxLon]
     );
 
-    // 3. Filtrage précis (Cercle exact) en JavaScript
     const results = candidates.map((r: any) => ({
       ...r,
       distanceKm: getDistanceFromLatLonInKm(userLat, userLon, r.lat, r.lon)
@@ -202,6 +196,26 @@ export const createUser = async (username: string, avatar: string = "default") =
   }
 };
 
+export const updateUserName = async (id: number, username: string) => {
+  try {
+    await db.runAsync('UPDATE users SET username = ? WHERE id = ?', [username, id]);
+    return true;
+  } catch (e) {
+    console.error("Erreur updateUserName:", e);
+    return false;
+  }
+};
+
+export const updateUserAvatar = async (id: number, avatar: string) => {
+  try {
+    await db.runAsync('UPDATE users SET avatar = ? WHERE id = ?', [avatar, id]);
+    return true;
+  } catch (e) {
+    console.error("Erreur updateUserAvatar:", e);
+    return false;
+  }
+};
+
 export const getUser = async (id: number) => {
   try {
     return await db.getFirstAsync('SELECT * FROM users WHERE id = ?', [id]);
@@ -219,11 +233,21 @@ export const getAllUsers = async () => {
   }
 };
 
+export const deleteUser = async (id: number) => {
+  try {
+    await db.runAsync('DELETE FROM users WHERE id = ?', [id]);
+    return true;
+  } catch (e) {
+    console.error("Erreur deleteUser:", e);
+    return false;
+  }
+};
+
 // --- UTILITAIRES ---
 
 // Formule de Haversine pour la distance précise en km
 const getDistanceFromLatLonInKm = (lat1: number, lon1: number, lat2: number, lon2: number) => {
-  const R = 6371; // Rayon de la terre
+  const R = 6371;
   const dLat = deg2rad(lat2 - lat1);
   const dLon = deg2rad(lon2 - lon1);
   const a =
