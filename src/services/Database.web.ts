@@ -8,12 +8,14 @@ const DB_USERS_KEY = 'food_reco_users_v1';
 // Chargement du JSON statique en mémoire
 const rawData = require('../data/restaurants.json');
 
+// Normalisation des données pour le web
 const staticData = (Array.isArray(rawData) ? rawData : (rawData.restaurants || [])).map((r: any) => ({
   ...r,
   id: r.id || Math.random().toString(36).substr(2, 9),
   cuisines: Array.isArray(r.cuisine) ? r.cuisine.join(',') : (r.cuisine || ""),
-  lat: typeof r.lat === 'number' ? r.lat : (r.meta_geo_point?.lat ?? null),
-  lon: typeof r.lon === 'number' ? r.lon : (r.meta_geo_point?.lon ?? null),
+  // Gestion robuste des coordonnées pour le web aussi
+  lat: typeof r.lat === 'number' ? r.lat : (r.meta_geo_point?.lat ?? 0),
+  lon: typeof r.lon === 'number' ? r.lon : (r.meta_geo_point?.lon ?? 0),
   vegetarian: r.diet?.vegetarian ? 1 : (r.vegetarian === 'yes' ? 1 : 0),
   vegan: r.diet?.vegan ? 1 : (r.vegan === 'yes' ? 1 : 0),
   takeaway: r.options?.takeaway ? 1 : (r.takeaway === 'yes' ? 1 : 0),
@@ -140,7 +142,7 @@ export const getRestaurantsNearby = async (lat: number, lon: number, radiusKm: n
   try {
     const all = await getAllRestaurants();
     const withDistance = all
-      .filter((r: any) => typeof r.lat === 'number' && typeof r.lon === 'number')
+      .filter((r: any) => typeof r.lat === 'number' && typeof r.lon === 'number' && r.lat !== 0 && r.lon !== 0)
       .map((r: any) => ({
         ...r,
         distanceKm: haversineKm(lat, lon, r.lat, r.lon),
@@ -152,4 +154,19 @@ export const getRestaurantsNearby = async (lat: number, lon: number, radiusKm: n
     console.error("Erreur recuperation restos proches web:", e);
     return [];
   }
+};
+
+// Mise à jour de la signature pour accepter 'view' et 'website'
+export const logInteraction = async (
+  restaurantId: number, 
+  cuisine: string, 
+  action: 'click' | 'call' | 'route' | 'view' | 'website'
+) => {
+  console.log(`[Web Interaction] Action: ${action} sur cuisine: ${cuisine}`);
+  return Promise.resolve();
+};
+
+export const getUserHabits = async () => {
+  console.log("[Web Algo] Récupération des habitudes (Vide)");
+  return Promise.resolve({});
 };
