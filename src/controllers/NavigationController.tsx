@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, BackHandler } from "react-native";
 import { TabType } from "../models/TabModel";
 
 // Importation des vues
-import { MapView } from "../views/MapView";
+import { MapView } from "../views/MapView.native";
 import { SearchView } from "../views/SearchView";
 import { SettingsView } from "../views/SettingsView";
 import { OnboardingPreferencesView } from "../views/OnboardingPreferencesView";
