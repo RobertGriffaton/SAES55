@@ -2,7 +2,6 @@ import * as SQLite from 'expo-sqlite';
 import { UserPreferences } from '../models/PreferencesModel';
 
 // 1. IMPORT ET PRÉPARATION DES DONNÉES JSON
-// On utilise 'require' pour charger le fichier localement
 const rawData = require('../data/restaurants.json');
 
 // Sécurisation : on récupère le tableau qu'il soit direct ou dans une clé "restaurants"
@@ -10,7 +9,7 @@ const restaurantsList: any[] = Array.isArray(rawData)
   ? rawData 
   : (rawData.restaurants || []);
 
-// 2. OUVERTURE DE LA BASE DE DONNÉES (Mode Synchrone avec Expo SQLite moderne)
+// 2. OUVERTURE DE LA BASE DE DONNÉES
 const db = SQLite.openDatabaseSync('food_reco.db');
 
 // --- FONCTIONS D'INITIALISATION ---
@@ -42,7 +41,18 @@ export const initDatabase = async () => {
       );
     `);
 
-    // C. Vérification et Remplissage
+    // C. Création de la table INTERACTIONS (Pour l'algo)
+    await db.execAsync(`
+      CREATE TABLE IF NOT EXISTS interactions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        restaurant_id INTEGER,
+        cuisine_tag TEXT,
+        action_type TEXT, 
+        timestamp INTEGER
+      );
+    `);
+
+    // D. Vérification et Remplissage
     const result = await db.getFirstAsync<{ count: number }>('SELECT count(*) as count FROM restaurants');
     
     if (result && result.count === 0) {
@@ -77,7 +87,7 @@ const insertDataFromJSON = async () => {
                 longitude = r.meta_geo_point.lon;
             }
 
-            // Si on a toujours 0, on ignore ce restaurant (il est inutile sans GPS)
+            // Si on a toujours 0, on ignore ce restaurant (inutile sans GPS)
             if (latitude === 0 && longitude === 0) continue;
 
             const cuisinesStr = Array.isArray(r.cuisine) ? r.cuisine.join(',') : (r.cuisine || "");
@@ -92,8 +102,8 @@ const insertDataFromJSON = async () => {
                 r.name || "Inconnu",
                 r.type || "restaurant",
                 cuisinesStr,
-                latitude,   // On utilise la variable corrigée
-                longitude,  // On utilise la variable corrigée
+                latitude,
+                longitude,
                 isVeg,
                 isVegan,
                 isTakeaway
@@ -127,7 +137,6 @@ export const searchRestaurants = async (prefs: UserPreferences) => {
   // Filtre Options
   if (prefs.options.emporter) query += " AND takeaway = 1";
 
-  // Tri par distance (si on avait la position ici) ou par défaut
   query += " LIMIT 50"; // Limite pour la performance
 
   try {
@@ -138,11 +147,10 @@ export const searchRestaurants = async (prefs: UserPreferences) => {
   }
 };
 
-// C'est la fonction qui manquait et causait votre erreur "getAllRestaurants is not a function"
 export const getAllRestaurants = async () => {
   try {
-    // On limite à 100 pour ne pas saturer la mémoire du téléphone
-    return await db.getAllAsync('SELECT * FROM restaurants LIMIT 100');
+    // Limite augmentée pour permettre à l'algo de travailler sur un plus grand jeu de données
+    return await db.getAllAsync('SELECT * FROM restaurants LIMIT 3000');
   } catch (e) {
     console.error("Erreur getAllRestaurants:", e);
     return [];
@@ -152,10 +160,8 @@ export const getAllRestaurants = async () => {
 // Fonction optimisée pour la Carte (Bounding Box)
 export const getRestaurantsNearby = async (userLat: number, userLon: number, radiusKm: number) => {
   try {
-    // 1. Calcul d'un carré autour de l'utilisateur (plus rapide que le calcul de cercle SQL)
-    // 1 degré de latitude ~= 111 km
+    // 1. Calcul d'un carré autour de l'utilisateur
     const latDelta = radiusKm / 111;
-    // Correction longitude selon la latitude
     const lonDelta = radiusKm / (111 * Math.cos(userLat * (Math.PI / 180)));
 
     const minLat = userLat - latDelta;
@@ -186,7 +192,7 @@ export const getRestaurantsNearby = async (userLat: number, userLon: number, rad
   }
 };
 
-// --- FONCTIONS UTILISATEURS (Pour le Profil) ---
+// --- FONCTIONS UTILISATEURS ---
 
 export const createUser = async (username: string, avatar: string = "default") => {
   try {
@@ -219,9 +225,47 @@ export const getAllUsers = async () => {
   }
 };
 
+// --- FONCTIONS ALGO / INTERACTIONS ---
+
+// Mise à jour de la signature pour accepter 'view' et 'website'
+export const logInteraction = async (
+  restaurantId: number, 
+  cuisine: string, 
+  action: 'click' | 'call' | 'route' | 'view' | 'website'
+) => {
+  try {
+    await db.runAsync(
+      'INSERT INTO interactions (restaurant_id, cuisine_tag, action_type, timestamp) VALUES (?, ?, ?, ?)',
+      [restaurantId, cuisine || "unknown", action, Date.now()]
+    );
+    console.log(`[Interaction] Action '${action}' enregistrée pour cuisine '${cuisine}'`);
+  } catch (e) {
+    console.error("Erreur logInteraction:", e);
+  }
+};
+
+export const getUserHabits = async () => {
+  try {
+    const rows = await db.getAllAsync('SELECT cuisine_tag, COUNT(*) as count FROM interactions GROUP BY cuisine_tag');
+    const habits: Record<string, number> = {};
+    
+    rows.forEach((r: any) => {
+        const tags = (r.cuisine_tag || "").split(',');
+        tags.forEach((t: string) => {
+            const cleanTag = t.trim().toLowerCase();
+            if(cleanTag) {
+                habits[cleanTag] = (habits[cleanTag] || 0) + r.count;
+            }
+        });
+    });
+    return habits;
+  } catch (e) {
+    return {};
+  }
+};
+
 // --- UTILITAIRES ---
 
-// Formule de Haversine pour la distance précise en km
 const getDistanceFromLatLonInKm = (lat1: number, lon1: number, lat2: number, lon2: number) => {
   const R = 6371; // Rayon de la terre
   const dLat = deg2rad(lat2 - lat1);
