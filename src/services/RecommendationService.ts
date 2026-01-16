@@ -8,13 +8,23 @@ const BONUS_PREFERENCE = 50;
 const BONUS_HABIT = 20;
 const PENALTY_DISTANCE = 5;
 
+// --- OPTIMISATION V2 : Variable de Cache ---
+// On stocke le dernier résultat et la dernière position en mémoire vive
+// pour ne pas recalculer si l'utilisateur n'a presque pas bougé.
+let memoizedCache: {
+  lat: number;
+  lon: number;
+  data: any[];
+  timestamp: number;
+} | null = null;
+
 // L'algo accepte maintenant des paramètres optionnels de position
 export const getAdaptiveRecommendations = async (
   forceLat?: number, 
   forceLon?: number, 
   radiusKm: number = 20 // Rayon par défaut assez large pour la liste (20km)
 ) => {
-  console.log("--- 🧠 Algo Adaptatif Intelligent ---");
+  console.log("--- 🧠 Algo Adaptatif Intelligent (Optimisé V2) ---");
 
   // 1. Récupération de la position (Si non fournie)
   let userLoc = null;
@@ -24,13 +34,47 @@ export const getAdaptiveRecommendations = async (
       try {
         const { status } = await Location.getForegroundPermissionsAsync();
         if (status === 'granted') {
-            const loc = await Location.getCurrentPositionAsync({});
-            userLoc = { lat: loc.coords.latitude, lon: loc.coords.longitude };
+            
+            // --- OPTIMISATION V2 : GPS Passif (Stratégie Économe) ---
+            // 1. On tente d'abord de récupérer la dernière position connue (instantané et économe)
+            // Cela évite de réveiller la puce GPS si une autre app (Maps, Météo) l'a déjà fait récemment.
+            let loc = await Location.getLastKnownPositionAsync({});
+
+            // 2. Si aucune dernière position n'existe (ex: premier lancement après reboot), on active le GPS
+            if (!loc) {
+                console.log("[GPS] Pas de dernière position, demande de localisation active...");
+                // On utilise 'Balanced' (précision ~100m) plutôt que 'Highest' pour économiser la batterie
+                loc = await Location.getCurrentPositionAsync({
+                    accuracy: Location.Accuracy.Balanced
+                });
+            } else {
+                console.log("[GPS] Utilisation de la dernière position connue (Mode Éco).");
+            }
+            
+            if (loc) {
+                userLoc = { lat: loc.coords.latitude, lon: loc.coords.longitude };
+            }
         }
-      } catch (e) {}
+      } catch (e) {
+          console.warn("Erreur lors de la récupération de la position:", e);
+      }
   }
 
-  // 2. CHOIX DE LA SOURCE DE DONNÉES (C'est ici la correction !)
+  // --- OPTIMISATION V2 : Vérification du Cache (Stratégie Mémoire) ---
+  if (userLoc && memoizedCache) {
+      const distDepuisDernierCalcul = getDistanceFromLatLonInKm(
+          userLoc.lat, userLoc.lon, 
+          memoizedCache.lat, memoizedCache.lon
+      );
+
+      // Si on a bougé de moins de 0.2 km (200m), on retourne le cache immédiatement
+      if (distDepuisDernierCalcul < 0.2) {
+          console.log(`[CACHE] Déplacement faible (${distDepuisDernierCalcul.toFixed(3)}km). Retour des données en mémoire.`);
+          return memoizedCache.data;
+      }
+  }
+
+  // 2. CHOIX DE LA SOURCE DE DONNÉES (Filtrage géographique)
   let rawData = [];
   
   if (userLoc) {
@@ -50,7 +94,7 @@ export const getAdaptiveRecommendations = async (
 
   console.log(`Données brutes : ${rawData.length} restaurants à trier.`);
 
-  // 3. Calcul du score (Identique à avant)
+  // 3. Calcul du score
   const scoredData = rawData.map((resto: any) => {
     let score = SCORE_BASE;
     let details = [];
@@ -92,7 +136,19 @@ export const getAdaptiveRecommendations = async (
   });
 
   // 4. Tri
-  return scoredData.sort((a, b) => b.score - a.score);
+  const finalResult = scoredData.sort((a, b) => b.score - a.score);
+
+  // --- OPTIMISATION V2 : Mise à jour du Cache ---
+  if (userLoc) {
+      memoizedCache = {
+          lat: userLoc.lat,
+          lon: userLoc.lon,
+          data: finalResult,
+          timestamp: Date.now()
+      };
+  }
+
+  return finalResult;
 };
 
 const getDistanceFromLatLonInKm = (lat1: number, lon1: number, lat2: number, lon2: number) => {
