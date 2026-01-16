@@ -25,26 +25,48 @@ export const MapViewComponent = ({ onRestaurantSelect }: MapViewProps) => {
 
   const webViewRef = useRef<WebView>(null);
 
-  // 1. Initialisation GPS
+  // 1. Initialisation GPS (Optimisée V2 : Stratégie Économe)
   useEffect(() => {
     (async () => {
-      let { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== "granted") {
-        Alert.alert("Info", "Position refusée. Paris par défaut.");
-        const paris: [number, number] = [48.8566, 2.3522];
-        setPosition(paris);
-        fetchRestaurants(paris[0], paris[1], 5);
-        setLoading(false);
-        return;
-      }
+      try {
+        let { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== "granted") {
+          Alert.alert("Info", "Position refusée. Paris par défaut.");
+          const paris: [number, number] = [48.8566, 2.3522];
+          setPosition(paris);
+          fetchRestaurants(paris[0], paris[1], 5);
+          setLoading(false);
+          return;
+        }
 
-      let location = await Location.getCurrentPositionAsync({});
-      const { latitude, longitude } = location.coords;
-      setUserPosition([latitude, longitude]);
-      setPosition([latitude, longitude]);
-      
-      fetchRestaurants(latitude, longitude, 5);
-      setLoading(false);
+        // --- OPTIMISATION V2 ---
+        // On tente d'abord la dernière position connue pour économiser la batterie
+        let location = await Location.getLastKnownPositionAsync({});
+
+        // Si pas de dernière position (ex: redémarrage), on lance le GPS avec précision équilibrée
+        if (!location) {
+          console.log("[Map] Pas de cache GPS, localisation active...");
+          location = await Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.Balanced
+          });
+        } else {
+          console.log("[Map] Utilisation dernière position connue.");
+        }
+
+        if (location) {
+            const { latitude, longitude } = location.coords;
+            setUserPosition([latitude, longitude]);
+            setPosition([latitude, longitude]);
+            
+            // Chargement initial
+            fetchRestaurants(latitude, longitude, 5);
+        }
+      } catch (e) {
+        console.warn("Erreur init Map:", e);
+        Alert.alert("Erreur", "Impossible de récupérer la position.");
+      } finally {
+        setLoading(false);
+      }
     })();
   }, []);
 

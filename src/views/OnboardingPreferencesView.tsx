@@ -109,7 +109,7 @@ export function OnboardingPreferencesView({ onDone }: { onDone: () => void }) {
     setOptions((prev) => ({ ...prev, [k]: !prev[k] }));
 
   const onSkip = async () => {
-    await setOnboardingDone(true);
+    await setOnboardingDone();
     onDone();
   };
 
@@ -124,7 +124,7 @@ export function OnboardingPreferencesView({ onDone }: { onDone: () => void }) {
     };
     try {
       await savePreferences(prefs);
-      await setOnboardingDone(true);
+      await setOnboardingDone();
       onDone();
     } catch (e) {
       Alert.alert("Erreur", "Impossible d'enregistrer vos préférences.");
