@@ -59,3 +59,6 @@ export const getUserHabits = async (): Promise<Record<string, number>> => {
 export const getDB = () => {
   return null;
 };
+export const getRestaurantPopularity = async (): Promise<Record<number, number>> => {
+  return Promise.resolve({});
+};

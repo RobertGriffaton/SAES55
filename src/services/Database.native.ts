@@ -264,6 +264,31 @@ export const getUserHabits = async () => {
   }
 };
 
+// --- NOUVEAU : Compteur de popularité par restaurant ---
+export const getRestaurantPopularity = async () => {
+  try {
+    // On compte combien de fois chaque ID revient dans la table interactions
+    // On filtre sur 'click', 'call', 'route' pour compter les "vraies" interactions actives
+    const result = await db.getAllAsync(
+      `SELECT restaurant_id, COUNT(*) as count 
+       FROM interactions 
+       WHERE action_type IN ('click', 'call', 'route', 'website') 
+       GROUP BY restaurant_id`
+    );
+
+    // Transformation en objet { "101": 5, "102": 12 }
+    const popularity: Record<number, number> = {};
+    result.forEach((row: any) => {
+        popularity[row.restaurant_id] = row.count;
+    });
+
+    return popularity;
+  } catch (e) {
+    console.error("Erreur getRestaurantPopularity:", e);
+    return {};
+  }
+};
+
 // --- UTILITAIRES ---
 
 const getDistanceFromLatLonInKm = (lat1: number, lon1: number, lat2: number, lon2: number) => {
