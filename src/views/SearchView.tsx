@@ -65,10 +65,7 @@ export const SearchView = ({ onRestaurantSelect }: SearchViewProps) => {
     setLoading(true);
     try {
       // Appel à l'algorithme de recommandation
-      // Il retourne la liste triée (Score = Habitudes + Préférences + Distance)
       const data = await getAdaptiveRecommendations(lat, lon, rad);
-
-      console.log(`[SearchView] ${data.length} restaurants chargés et triés par pertinence.`);
       setAllRestaurants(Array.isArray(data) ? data : []);
     } catch (e) {
       console.error("Erreur chargement algo:", e);
@@ -203,44 +200,28 @@ export const SearchView = ({ onRestaurantSelect }: SearchViewProps) => {
 
 
   // --- GÉOLOCALISATION & RECHARGEMENT ---
-  // Fonction pour récupérer le nom de la ville via reverse geocoding
   const getCityName = async (lat: number, lon: number): Promise<string> => {
     try {
-      // Utilisation de l'API Nominatim (OpenStreetMap)
       const response = await fetch(
         `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=10&addressdetails=1`,
-        {
-          headers: {
-            'User-Agent': 'GrayeApp/1.0' // Nominatim demande un User-Agent
-          }
-        }
+        { headers: { 'User-Agent': 'GrayeApp/1.0' } }
       );
 
       if (response.ok) {
         const data = await response.json();
         const address = data.address;
-
-        // Construire le nom de la ville
         const city = address.city || address.town || address.village || address.suburb;
         const district = address.city_district;
 
-        if (city && district) {
-          return `${city}, ${district}`;
-        } else if (city) {
-          return city;
-        } else {
-          return `${lat.toFixed(3)}, ${lon.toFixed(3)}`;
-        }
+        if (city && district) return `${city}, ${district}`;
+        if (city) return city;
       }
     } catch (error) {
       console.warn("Erreur reverse geocoding:", error);
     }
-
-    // Fallback: afficher les coordonnées
     return `${lat.toFixed(3)}, ${lon.toFixed(3)}`;
   };
 
-  // Remplacez votre fonction requestLocation actuelle par celle-ci :
   const requestLocation = async () => {
     setLocationError(null);
     setRequestingLocation(true);
@@ -248,15 +229,9 @@ export const SearchView = ({ onRestaurantSelect }: SearchViewProps) => {
     try {
       let lat, lon;
 
-      // --- SPÉCIFIQUE WEB : GESTION DES ERREURS ---
       if (Platform.OS === "web") {
-        if (!navigator.geolocation) {
-          throw new Error("Géolocalisation non supportée.");
-        }
-
-        console.log("Tentative GPS Web...");
-
-        // Fonction utilitaire pour "promisifier" l'API Geolocation du navigateur
+        if (!navigator.geolocation) throw new Error("Géolocalisation non supportée.");
+        
         const getWebPosition = (options: PositionOptions): Promise<GeolocationPosition> => {
           return new Promise((resolve, reject) => {
             navigator.geolocation.getCurrentPosition(resolve, reject, options);
@@ -264,61 +239,40 @@ export const SearchView = ({ onRestaurantSelect }: SearchViewProps) => {
         };
 
         try {
-          // Tentative 1 : Précision moyenne (plus rapide et compatible PC/Wi-Fi)
-          // timeout: 10000 (10s) pour laisser le temps au Wi-Fi de trianguler
           const pos = await getWebPosition({ enableHighAccuracy: false, timeout: 10000 });
           lat = pos.coords.latitude;
           lon = pos.coords.longitude;
         } catch (err) {
-          console.warn("Échec GPS Web standard, tentative Haute Précision...", err);
-          // Tentative 2 : Haute précision (si dispo)
           const pos = await getWebPosition({ enableHighAccuracy: true, timeout: 10000 });
           lat = pos.coords.latitude;
           lon = pos.coords.longitude;
         }
 
-      }
-      // --- LOGIQUE MOBILE (Inchangée car elle marche) ---
-      else {
+      } else {
         const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status !== "granted") {
-          throw new Error("Permission refusée sur mobile");
-        }
+        if (status !== "granted") throw new Error("Permission refusée sur mobile");
+        
         const loc = await Location.getCurrentPositionAsync({});
         lat = loc.coords.latitude;
         lon = loc.coords.longitude;
       }
 
-      // SUCCÈS : On a la position
-      console.log("Position trouvée :", lat, lon);
       setUserLocation({ lat, lon });
       setUseLocationFilter(true);
-
-      // Récupérer le nom de la ville
       const cityName = await getCityName(lat, lon);
       setLocationName(cityName);
-      console.log("Ville :", cityName);
-
-      // IMPORTANT : On recharge la liste avec la nouvelle position pour mettre à jour les scores
       await loadData(lat, lon, radiusKm);
 
     } catch (err: any) {
       console.error("ERREUR GÉOLOCALISATION :", err);
-
-      // --- PLAN B (UNIQUEMENT SUR LE WEB) ---
-      // Si tout échoue sur le web, on place l'utilisateur à Paris pour ne pas bloquer le test
       if (Platform.OS === 'web') {
         const parisLat = 48.8566;
         const parisLon = 2.3522;
-        console.log("⚠️ Mode Secours Web activé : Paris Châtelet");
-
         setUserLocation({ lat: parisLat, lon: parisLon });
         setLocationName("Paris, Centre");
         setUseLocationFilter(true);
         await loadData(parisLat, parisLon, radiusKm);
-
-        // On affiche une petite alerte pour prévenir que ce n'est pas le vrai GPS
-        alert("Impossible de vous localiser (Erreur Navigateur). Position par défaut utilisée (Paris) pour le test.");
+        alert("Mode secours: Paris utilisé par défaut.");
       } else {
         setLocationError("Impossible de récupérer la position.");
         setUseLocationFilter(false);
@@ -327,6 +281,7 @@ export const SearchView = ({ onRestaurantSelect }: SearchViewProps) => {
       setRequestingLocation(false);
     }
   };
+
   // --- RENDUS ITEMS ---
 
   const renderSuggestionItem = ({ item }: { item: any }) => (
@@ -373,8 +328,9 @@ export const SearchView = ({ onRestaurantSelect }: SearchViewProps) => {
 
   if (loading) return <View style={[styles.container, styles.center]}><ActivityIndicator size="large" color={colors.primary} /></View>;
 
-  const HeaderComponent = () => (
-    <View style={{ backgroundColor: "#fff" }}>
+  // --- HEADER CONSTANT ---
+  const headerContent = (
+    <View style={{ backgroundColor: "#fff", zIndex: 10 }}>
       <View style={styles.header}>
         {/* Location & Profile */}
         <View style={styles.locationRow}>
@@ -411,7 +367,7 @@ export const SearchView = ({ onRestaurantSelect }: SearchViewProps) => {
           <Text style={styles.mainTitleOrange}>Viens Graye !</Text>
         </Text>
 
-        {/* Search Bar */}
+        {/* Search Bar AVEC BORDURE VIOLETTE */}
         <View style={styles.searchBarContainer}>
           <Ionicons name="search" size={20} color="#9CA3AF" />
           <TextInput
@@ -444,34 +400,19 @@ export const SearchView = ({ onRestaurantSelect }: SearchViewProps) => {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={[styles.categoriesScroll, { paddingHorizontal: spacing.large }]}
           >
-            <TouchableOpacity
-              style={[styles.categoryPill, selectedCategories.length === 0 && styles.categoryPillActive]}
-              onPress={() => setSelectedCategories([])}
-            >
+            <TouchableOpacity style={[styles.categoryPill, selectedCategories.length === 0 && styles.categoryPillActive]} onPress={() => setSelectedCategories([])}>
               <Text style={styles.categoryEmoji}>🔥</Text>
               <Text style={[styles.categoryText, selectedCategories.length === 0 && styles.categoryTextActive]}>Pour toi</Text>
             </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.categoryPill, selectedCategories.includes("burger") && styles.categoryPillActive]}
-              onPress={() => toggleCategory("burger")}
-            >
+            <TouchableOpacity style={[styles.categoryPill, selectedCategories.includes("burger") && styles.categoryPillActive]} onPress={() => toggleCategory("burger")}>
               <Text style={styles.categoryEmoji}>🍔</Text>
               <Text style={[styles.categoryText, selectedCategories.includes("burger") && styles.categoryTextActive]}>Burgers</Text>
             </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.categoryPill, selectedCategories.includes("japonais") && styles.categoryPillActive]}
-              onPress={() => toggleCategory("japonais")}
-            >
+            <TouchableOpacity style={[styles.categoryPill, selectedCategories.includes("japonais") && styles.categoryPillActive]} onPress={() => toggleCategory("japonais")}>
               <Text style={styles.categoryEmoji}>🍣</Text>
               <Text style={[styles.categoryText, selectedCategories.includes("japonais") && styles.categoryTextActive]}>Jap'</Text>
             </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.categoryPill, selectedCategories.includes("healthy") && styles.categoryPillActive]}
-              onPress={() => toggleCategory("healthy")}
-            >
+            <TouchableOpacity style={[styles.categoryPill, selectedCategories.includes("healthy") && styles.categoryPillActive]} onPress={() => toggleCategory("healthy")}>
               <Text style={styles.categoryEmoji}>🥗</Text>
               <Text style={[styles.categoryText, selectedCategories.includes("healthy") && styles.categoryTextActive]}>Healthy</Text>
             </TouchableOpacity>
@@ -479,7 +420,7 @@ export const SearchView = ({ onRestaurantSelect }: SearchViewProps) => {
         </View>
       )}
 
-      {/* Filtres avancés - affiché après les category pills */}
+      {/* Filters Panel */}
       {showFilters && (!isSearching || searchText.length < 3) && (
         <View style={styles.filtersContainer}>
           <View style={styles.filterRow}>
@@ -494,17 +435,7 @@ export const SearchView = ({ onRestaurantSelect }: SearchViewProps) => {
                   {RADIUS_OPTIONS.map((opt) => {
                     const active = radiusKm === opt;
                     return (
-                      <TouchableOpacity
-                        key={opt}
-                        style={[styles.chip, active && styles.chipActive]}
-                        onPress={() => {
-                          setRadiusKm(opt);
-                          // Si on a déjà la position, on recharge avec le nouveau rayon pour l'algo
-                          if (userLocation) {
-                            loadData(userLocation.lat, userLocation.lon, opt);
-                          }
-                        }}
-                      >
+                      <TouchableOpacity key={opt} style={[styles.chip, active && styles.chipActive]} onPress={() => { setRadiusKm(opt); if (userLocation) loadData(userLocation.lat, userLocation.lon, opt); }}>
                         <Text style={[styles.chipText, active && styles.chipTextActive]}>{opt} km</Text>
                       </TouchableOpacity>
                     );
@@ -531,31 +462,35 @@ export const SearchView = ({ onRestaurantSelect }: SearchViewProps) => {
         </View>
       )}
 
-      {/* Section "Nos recommandations" header */}
-      {(!isSearching && searchText.length < 3) && (
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Nos recommandations</Text>
-          <Text style={styles.sectionLink}>Voir tout</Text>
-        </View>
-      )}
+      {/* Titre de Section (adaptatif) */}
+      <View style={styles.sectionHeader}>
+        {(!isSearching && searchText.length < 3) ? (
+           <>
+             <Text style={styles.sectionTitle}>Nos recommandations</Text>
+             <Text style={styles.sectionLink}>Voir tout</Text>
+           </>
+        ) : (
+           <Text style={styles.sectionTitle}>Résultats pour "{searchText}"</Text>
+        )}
+      </View>
     </View>
   );
 
   return (
     <View style={styles.container}>
+      {headerContent}
+
+      {/* AFFICHAGE CONDITIONNEL DU CONTENU DU BAS */}
       {(!isSearching && searchText.length >= 3 && suggestions.length > 0) ? (
-        <>
-          <HeaderComponent />
-          <View style={styles.suggestionsContainer}>
-            <Text style={styles.suggestionsHeader}>Suggestions</Text>
-            <FlatList
-              data={suggestions}
-              renderItem={renderSuggestionItem}
-              keyExtractor={(item, index) => (item.id ? item.id.toString() : index.toString())}
-              keyboardShouldPersistTaps="handled"
-            />
-          </View>
-        </>
+        <View style={styles.suggestionsContainer}>
+          <Text style={styles.suggestionsHeader}>Suggestions rapides</Text>
+          <FlatList
+            data={suggestions}
+            renderItem={renderSuggestionItem}
+            keyExtractor={(item, index) => (item.id ? item.id.toString() : index.toString())}
+            keyboardShouldPersistTaps="handled"
+          />
+        </View>
       ) : (
         <FlatList
           data={paginatedData}
@@ -563,7 +498,6 @@ export const SearchView = ({ onRestaurantSelect }: SearchViewProps) => {
           keyExtractor={(item, index) => (item.id ? item.id.toString() : index.toString())}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
-          ListHeaderComponent={HeaderComponent}
           ListFooterComponent={renderPaginationFooter}
           keyboardDismissMode="on-drag"
 
@@ -584,7 +518,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#FFFFFF" },
   center: { justifyContent: "center", alignItems: "center" },
 
-  // Header moderne style Graye
+  // Header
   header: {
     paddingHorizontal: spacing.large,
     paddingTop: Platform.OS === 'ios' ? 60 : 50,
@@ -592,7 +526,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
   },
 
-  // Location section
+  // Location
   locationRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -628,7 +562,7 @@ const styles = StyleSheet.create({
     borderColor: "#FF8C00",
   },
 
-  // Titre principal
+  // Titre
   mainTitle: {
     fontSize: 24,
     fontWeight: "900",
@@ -640,15 +574,17 @@ const styles = StyleSheet.create({
     color: "#FF8C00",
   },
 
-  // Barre de recherche moderne
+  // MODIFICATION ICI : Barre de recherche avec bordure violette
   searchBarContainer: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#F5F5F7",
+    backgroundColor: "#FFFFFF", // Fond blanc pour contraste
     borderRadius: 16,
     paddingHorizontal: 16,
     height: 52,
     marginBottom: 16,
+    borderWidth: 2, // Bordure visible
+    borderColor: colors.primary || "#6B4EFF", // Couleur violette
   },
   searchInput: {
     flex: 1,
@@ -660,7 +596,7 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   filterButton: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "#F5F5F7", // Bouton filtre gris clair pour se distinguer du fond blanc
     padding: 8,
     borderRadius: 12,
     marginLeft: 8,
@@ -731,7 +667,7 @@ const styles = StyleSheet.create({
     color: colors.primary || "#6B4EFF",
   },
 
-  // Filtres avancés (panneau déroulant)
+  // Filtres
   filtersContainer: {
     paddingHorizontal: spacing.large,
     paddingVertical: spacing.medium,
@@ -841,7 +777,7 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
 
-  // Erreurs et états de chargement
+  // Erreurs
   errorText: { color: "#EF4444", fontSize: 12, marginTop: 4 },
   locatingRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 8 },
   locatingText: { color: "#6B7280", fontSize: 13 },
