@@ -13,7 +13,8 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing } from "../styles/theme";
-import { logInteraction } from "../services/Database";
+import { logInteraction, addFavorite, removeFavorite, isFavorite as checkIsFavorite } from "../services/Database";
+import { getActiveProfile } from "../controllers/ProfileController";
 
 // --- MAPPING DES IMAGES ---
 const CATEGORY_IMAGES: Record<string, any> = {
@@ -69,11 +70,23 @@ export const RestaurantDetailView = ({ restaurant, onBack }: RestaurantDetailPro
   const { width } = useWindowDimensions();
   const isLargeScreen = width > 768;
   const [isFavorite, setIsFavorite] = useState(false);
+  const [userId, setUserId] = useState<string>('default');
 
   useEffect(() => {
-    if (restaurant && restaurant.id) {
-      logInteraction(restaurant.id, restaurant.cuisines, 'view');
-    }
+    const init = async () => {
+      // Récupérer le profil actif pour l'userId
+      const profile = await getActiveProfile();
+      const uid = profile?.id || 'default';
+      setUserId(uid);
+
+      if (restaurant && restaurant.id) {
+        logInteraction(restaurant.id, restaurant.cuisines, 'view');
+        // Vérifier si le restaurant est déjà en favori pour cet utilisateur
+        const fav = await checkIsFavorite(Number(restaurant.id), uid);
+        setIsFavorite(fav);
+      }
+    };
+    init();
   }, [restaurant]);
 
   // --- LOGIQUE IMAGE ---
@@ -137,9 +150,15 @@ export const RestaurantDetailView = ({ restaurant, onBack }: RestaurantDetailPro
     if (url) Linking.openURL(url).catch(err => console.error("Erreur lien", err));
   };
 
-  const toggleFavorite = () => {
-    setIsFavorite(!isFavorite);
-    // TODO: Sauvegarder en base de données
+  const toggleFavorite = async () => {
+    const restaurantId = Number(restaurant.id);
+    if (isFavorite) {
+      await removeFavorite(restaurantId, userId);
+      setIsFavorite(false);
+    } else {
+      await addFavorite(restaurantId, userId);
+      setIsFavorite(true);
+    }
   };
 
   // Calcul distance formatée

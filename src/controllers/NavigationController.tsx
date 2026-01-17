@@ -27,7 +27,7 @@ console.log("---------------------");
 
 export const NavigationController = () => {
   const [showOnboarding, setShowOnboarding] = useState(true);
-  const [activeTab, setActiveTab] = useState<TabType>("map"); 
+  const [activeTab, setActiveTab] = useState<TabType>("map");
   const [selectedRestaurant, setSelectedRestaurant] = useState<any | null>(null);
 
   // --- NOUVEAU : Stockage de la session de recherche ---
@@ -63,39 +63,39 @@ export const NavigationController = () => {
   // VÉRIFICATION DE SÉCURITÉ
   // Si OnboardingPreferencesView est undefined, on affiche un message d'erreur au lieu de planter
   if (showOnboarding) {
-    if (!OnboardingPreferencesView) return <Text style={{marginTop: 50}}>ERREUR: OnboardingPreferencesView est mal importé.</Text>;
+    if (!OnboardingPreferencesView) return <Text style={{ marginTop: 50 }}>ERREUR: OnboardingPreferencesView est mal importé.</Text>;
     return <OnboardingPreferencesView onDone={handleOnboardingDone} />;
   }
 
   if (selectedRestaurant) {
-    if (!RestaurantDetailView) return <Text style={{marginTop: 50}}>ERREUR: RestaurantDetailView est mal importé.</Text>;
+    if (!RestaurantDetailView) return <Text style={{ marginTop: 50 }}>ERREUR: RestaurantDetailView est mal importé.</Text>;
     return <RestaurantDetailView restaurant={selectedRestaurant} onBack={() => setSelectedRestaurant(null)} />;
   }
 
   const renderActiveView = () => {
     // Vérifications de sécurité pour les onglets
     if (activeTab === "map") {
-        if (!MapView) return <Text>ERREUR: MapView est mal importé.</Text>;
-        return <MapView onRestaurantSelect={handleSelectRestaurant} />;
+      if (!MapView) return <Text>ERREUR: MapView est mal importé.</Text>;
+      return <MapView onRestaurantSelect={handleSelectRestaurant} />;
     }
     if (activeTab === "search") {
-        if (!SearchView) return <Text>ERREUR: SearchView est mal importé.</Text>;
-        // --- MODIFICATION : On passe l'état sauvegardé et la fonction de sauvegarde ---
-        return (
-          <SearchView 
-            onRestaurantSelect={handleSelectRestaurant} 
-            savedState={searchSession}
-            onSaveState={setSearchSession}
-          />
-        );
+      if (!SearchView) return <Text>ERREUR: SearchView est mal importé.</Text>;
+      // --- MODIFICATION : On passe l'état sauvegardé et la fonction de sauvegarde ---
+      return (
+        <SearchView
+          onRestaurantSelect={handleSelectRestaurant}
+          savedState={searchSession}
+          onSaveState={setSearchSession}
+        />
+      );
     }
     if (activeTab === "favorites") {
-        if (!FavoritesView) return <Text>ERREUR: FavoritesView est mal importé.</Text>;
-        return <FavoritesView />;
+      if (!FavoritesView) return <Text>ERREUR: FavoritesView est mal importé.</Text>;
+      return <FavoritesView onRestaurantSelect={handleSelectRestaurant} />;
     }
     if (activeTab === "settings") {
-        if (!SettingsView) return <Text>ERREUR: SettingsView est mal importé.</Text>;
-        return <SettingsView />;
+      if (!SettingsView) return <Text>ERREUR: SettingsView est mal importé.</Text>;
+      return <SettingsView />;
     }
     return null;
   };
@@ -106,9 +106,9 @@ export const NavigationController = () => {
         {renderActiveView()}
       </View>
       {BottomNavBar ? (
-          <BottomNavBar activeTab={activeTab} onTabChange={setActiveTab} />
+        <BottomNavBar activeTab={activeTab} onTabChange={setActiveTab} />
       ) : (
-          <Text>ERREUR: BottomNavBar est mal importé.</Text>
+        <Text>ERREUR: BottomNavBar est mal importé.</Text>
       )}
     </View>
   );

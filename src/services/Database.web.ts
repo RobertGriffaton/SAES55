@@ -88,7 +88,7 @@ export const createUser = async (username: string, avatar: string = "default") =
 
     users.push(newUser);
     await AsyncStorage.setItem(DB_USERS_KEY, JSON.stringify(users));
-    
+
     console.log("[Web DB] Utilisateur créé :", newUser);
     return newUser.id;
   } catch (e) {
@@ -160,14 +160,14 @@ export const getRestaurantsNearby = async (lat: number, lon: number, radiusKm: n
 // --- INTERACTION & ALGO (Mise à jour V2) ---
 
 export const logInteraction = async (
-  restaurantId: number, 
-  cuisine: string, 
+  restaurantId: number,
+  cuisine: string,
   action: 'click' | 'call' | 'route' | 'view' | 'website'
 ) => {
   try {
     const json = await AsyncStorage.getItem(DB_INTERACTIONS_KEY);
     const history = json ? JSON.parse(json) : [];
-    
+
     // On ajoute l'interaction
     history.push({
       restaurantId,
@@ -190,13 +190,13 @@ export const getUserHabits = async (): Promise<Record<string, number>> => {
     const habits: Record<string, number> = {};
 
     history.forEach((h: any) => {
-       const tags = (h.cuisine_tag || "").split(',');
-       tags.forEach((t: string) => {
-           const cleanTag = t.trim().toLowerCase();
-           if(cleanTag) {
-               habits[cleanTag] = (habits[cleanTag] || 0) + 1;
-           }
-       });
+      const tags = (h.cuisine_tag || "").split(',');
+      tags.forEach((t: string) => {
+        const cleanTag = t.trim().toLowerCase();
+        if (cleanTag) {
+          habits[cleanTag] = (habits[cleanTag] || 0) + 1;
+        }
+      });
     });
 
     console.log(`[Web Algo] ${Object.keys(habits).length} habitudes trouvées.`);
@@ -216,15 +216,152 @@ export const getRestaurantPopularity = async (): Promise<Record<number, number>>
     history.forEach((h: any) => {
       // On ne compte que les actions engageantes comme sur mobile
       if (['click', 'call', 'route', 'website'].includes(h.action_type)) {
-         const id = Number(h.restaurantId);
-         if (!isNaN(id)) {
-            popularity[id] = (popularity[id] || 0) + 1;
-         }
+        const id = Number(h.restaurantId);
+        if (!isNaN(id)) {
+          popularity[id] = (popularity[id] || 0) + 1;
+        }
       }
     });
 
     return popularity;
   } catch (e) {
     return {};
+  }
+};
+
+// --- FAVORIS (avec userId et validated) ---
+const DB_FAVORITES_KEY = 'food_reco_favorites_v2';
+
+interface FavoriteEntry {
+  restaurantId: string;
+  userId: string;
+  validated: boolean;
+  createdAt: number;
+}
+
+// Récupérer toutes les entrées de favoris
+const getAllFavoriteEntries = async (): Promise<FavoriteEntry[]> => {
+  try {
+    const json = await AsyncStorage.getItem(DB_FAVORITES_KEY);
+    return json ? JSON.parse(json) : [];
+  } catch {
+    return [];
+  }
+};
+
+// Sauvegarder toutes les entrées
+const saveFavoriteEntries = async (entries: FavoriteEntry[]): Promise<void> => {
+  await AsyncStorage.setItem(DB_FAVORITES_KEY, JSON.stringify(entries));
+};
+
+export const addFavorite = async (restaurantId: number, userId?: string): Promise<void> => {
+  try {
+    const entries = await getAllFavoriteEntries();
+    const key = String(restaurantId);
+    const uid = userId || 'default';
+
+    // Vérifier si déjà existant pour cet utilisateur
+    const exists = entries.some(e => e.restaurantId === key && e.userId === uid);
+    if (!exists) {
+      entries.push({
+        restaurantId: key,
+        userId: uid,
+        validated: false,
+        createdAt: Date.now()
+      });
+      await saveFavoriteEntries(entries);
+      console.log(`[Web DB] Restaurant ${restaurantId} ajouté aux favoris pour user ${uid}`);
+    }
+  } catch (e) {
+    console.error("Erreur ajout favori:", e);
+  }
+};
+
+export const removeFavorite = async (restaurantId: number, userId?: string): Promise<void> => {
+  try {
+    const entries = await getAllFavoriteEntries();
+    const key = String(restaurantId);
+    const uid = userId || 'default';
+
+    const filtered = entries.filter(e => !(e.restaurantId === key && e.userId === uid));
+    await saveFavoriteEntries(filtered);
+    console.log(`[Web DB] Restaurant ${restaurantId} retiré des favoris pour user ${uid}`);
+  } catch (e) {
+    console.error("Erreur suppression favori:", e);
+  }
+};
+
+export const validateFavorite = async (restaurantId: number, userId?: string): Promise<void> => {
+  try {
+    const entries = await getAllFavoriteEntries();
+    const key = String(restaurantId);
+    const uid = userId || 'default';
+
+    const entry = entries.find(e => e.restaurantId === key && e.userId === uid);
+    if (entry) {
+      entry.validated = true;
+      await saveFavoriteEntries(entries);
+      console.log(`[Web DB] Restaurant ${restaurantId} validé pour user ${uid}`);
+    }
+  } catch (e) {
+    console.error("Erreur validation favori:", e);
+  }
+};
+
+export const unvalidateFavorite = async (restaurantId: number, userId?: string): Promise<void> => {
+  try {
+    const entries = await getAllFavoriteEntries();
+    const key = String(restaurantId);
+    const uid = userId || 'default';
+
+    const entry = entries.find(e => e.restaurantId === key && e.userId === uid);
+    if (entry) {
+      entry.validated = false;
+      await saveFavoriteEntries(entries);
+      console.log(`[Web DB] Restaurant ${restaurantId} remis en "À tester" pour user ${uid}`);
+    }
+  } catch (e) {
+    console.error("Erreur unvalidation favori:", e);
+  }
+};
+
+export const getFavorites = async (userId?: string, validated?: boolean): Promise<any[]> => {
+  try {
+    const entries = await getAllFavoriteEntries();
+    const uid = userId || 'default';
+
+    // Filtrer par utilisateur et optionnellement par statut validé
+    let userEntries = entries.filter(e => e.userId === uid);
+    if (validated !== undefined) {
+      userEntries = userEntries.filter(e => e.validated === validated);
+    }
+
+    if (userEntries.length === 0) return [];
+
+    // Récupérer les objets complets des restaurants
+    const allRestaurants = await getAllRestaurants();
+    const favorites = allRestaurants.filter((r: any) =>
+      userEntries.some(e => e.restaurantId === String(r.id))
+    ).map((r: any) => ({
+      ...r,
+      validated: userEntries.find(e => e.restaurantId === String(r.id))?.validated || false
+    }));
+
+    console.log(`[Web DB] ${favorites.length} favoris récupérés pour user ${uid} (validated=${validated})`);
+    return favorites;
+  } catch (e) {
+    console.error("Erreur récupération favoris:", e);
+    return [];
+  }
+};
+
+export const isFavorite = async (restaurantId: number, userId?: string): Promise<boolean> => {
+  try {
+    const entries = await getAllFavoriteEntries();
+    const key = String(restaurantId);
+    const uid = userId || 'default';
+    return entries.some(e => e.restaurantId === key && e.userId === uid);
+  } catch (e) {
+    return false;
   }
 };
