@@ -18,7 +18,7 @@ import { colors, spacing } from "../styles/theme";
 import { getAdaptiveRecommendations } from "../services/RecommendationService";
 // On garde getAllRestaurants pour les suggestions de recherche si besoin, 
 // mais le chargement principal se fait via l'algo.
-import { getAllRestaurants } from "../services/Database"; 
+import { getAllRestaurants } from "../services/Database";
 import { RestaurantCard } from "../components/RestaurantCard";
 import * as Location from "expo-location";
 
@@ -49,6 +49,7 @@ export const SearchView = ({ onRestaurantSelect }: SearchViewProps) => {
   const [onSiteOnly, setOnSiteOnly] = useState(false);
   const [useLocationFilter, setUseLocationFilter] = useState(false);
   const [userLocation, setUserLocation] = useState<{ lat: number; lon: number } | null>(null);
+  const [locationName, setLocationName] = useState<string | null>(null);
   const [radiusKm, setRadiusKm] = useState<number>(5);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [requestingLocation, setRequestingLocation] = useState(false);
@@ -66,7 +67,7 @@ export const SearchView = ({ onRestaurantSelect }: SearchViewProps) => {
       // Appel à l'algorithme de recommandation
       // Il retourne la liste triée (Score = Habitudes + Préférences + Distance)
       const data = await getAdaptiveRecommendations(lat, lon, rad);
-      
+
       console.log(`[SearchView] ${data.length} restaurants chargés et triés par pertinence.`);
       setAllRestaurants(Array.isArray(data) ? data : []);
     } catch (e) {
@@ -111,7 +112,7 @@ export const SearchView = ({ onRestaurantSelect }: SearchViewProps) => {
       .map(([cat]) => cat);
   }, [allRestaurants]);
 
-  const formatLabel = (value: string) => 
+  const formatLabel = (value: string) =>
     value ? value.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) : "";
 
   const getDistanceFromLatLonInKm = (lat1: number, lon1: number, lat2: number, lon2: number) => {
@@ -119,8 +120,8 @@ export const SearchView = ({ onRestaurantSelect }: SearchViewProps) => {
     const dLat = ((lat2 - lat1) * Math.PI) / 180;
     const dLon = ((lon2 - lon1) * Math.PI) / 180;
     const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-              Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) *
-              Math.sin(dLon / 2) * Math.sin(dLon / 2);
+      Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return R * c;
   };
@@ -131,8 +132,8 @@ export const SearchView = ({ onRestaurantSelect }: SearchViewProps) => {
     return allRestaurants.filter((resto) => {
       // 1. Recherche Textuelle
       if (isSearching && searchText.length >= 3) {
-         const nameMatch = (resto.name || "").toLowerCase().includes(searchText.toLowerCase());
-         if (!nameMatch) return false;
+        const nameMatch = (resto.name || "").toLowerCase().includes(searchText.toLowerCase());
+        if (!nameMatch) return false;
       }
 
       // 2. Catégories
@@ -191,106 +192,150 @@ export const SearchView = ({ onRestaurantSelect }: SearchViewProps) => {
       .slice(0, MAX_SUGGESTIONS);
   }, [searchText, allRestaurants]);
 
-  const handleSearchChange = (text: string) => { 
-      setSearchText(text); 
-      if(text.length < 3) setIsSearching(false);
+  const handleSearchChange = (text: string) => {
+    setSearchText(text);
+    if (text.length < 3) setIsSearching(false);
   };
-  
+
   const clearSearch = () => { setSearchText(""); setIsSearching(false); Keyboard.dismiss(); };
 
-  const toggleCategory = (cat: string) => { setSelectedCategories((prev) => prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat] ); };
+  const toggleCategory = (cat: string) => { setSelectedCategories((prev) => prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat]); };
+
 
   // --- GÉOLOCALISATION & RECHARGEMENT ---
- // Remplacez votre fonction requestLocation actuelle par celle-ci :
-  const requestLocation = async () => {
-      setLocationError(null);
-      setRequestingLocation(true);
-      
-      try {
-        let lat, lon;
-        
-        // --- SPÉCIFIQUE WEB : GESTION DES ERREURS ---
-        if (Platform.OS === "web") {
-          if (!navigator.geolocation) {
-             throw new Error("Géolocalisation non supportée.");
+  // Fonction pour récupérer le nom de la ville via reverse geocoding
+  const getCityName = async (lat: number, lon: number): Promise<string> => {
+    try {
+      // Utilisation de l'API Nominatim (OpenStreetMap)
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=10&addressdetails=1`,
+        {
+          headers: {
+            'User-Agent': 'GrayeApp/1.0' // Nominatim demande un User-Agent
           }
-
-          console.log("Tentative GPS Web...");
-          
-          // Fonction utilitaire pour "promisifier" l'API Geolocation du navigateur
-          const getWebPosition = (options: PositionOptions): Promise<GeolocationPosition> => {
-            return new Promise((resolve, reject) => {
-              navigator.geolocation.getCurrentPosition(resolve, reject, options);
-            });
-          };
-
-          try {
-            // Tentative 1 : Précision moyenne (plus rapide et compatible PC/Wi-Fi)
-            // timeout: 10000 (10s) pour laisser le temps au Wi-Fi de trianguler
-            const pos = await getWebPosition({ enableHighAccuracy: false, timeout: 10000 });
-            lat = pos.coords.latitude;
-            lon = pos.coords.longitude;
-          } catch (err) {
-            console.warn("Échec GPS Web standard, tentative Haute Précision...", err);
-            // Tentative 2 : Haute précision (si dispo)
-            const pos = await getWebPosition({ enableHighAccuracy: true, timeout: 10000 });
-            lat = pos.coords.latitude;
-            lon = pos.coords.longitude;
-          }
-
-        } 
-        // --- LOGIQUE MOBILE (Inchangée car elle marche) ---
-        else {
-          const { status } = await Location.requestForegroundPermissionsAsync();
-          if (status !== "granted") {
-            throw new Error("Permission refusée sur mobile");
-          }
-          const loc = await Location.getCurrentPositionAsync({});
-          lat = loc.coords.latitude;
-          lon = loc.coords.longitude;
         }
+      );
 
-        // SUCCÈS : On a la position
-        console.log("Position trouvée :", lat, lon);
-        setUserLocation({ lat, lon });
-        setUseLocationFilter(true);
-        
-        // IMPORTANT : On recharge la liste avec la nouvelle position pour mettre à jour les scores
-        await loadData(lat, lon, radiusKm);
+      if (response.ok) {
+        const data = await response.json();
+        const address = data.address;
 
-      } catch (err: any) {
-        console.error("ERREUR GÉOLOCALISATION :", err);
-        
-        // --- PLAN B (UNIQUEMENT SUR LE WEB) ---
-        // Si tout échoue sur le web, on place l'utilisateur à Paris pour ne pas bloquer le test
-        if (Platform.OS === 'web') {
-            const parisLat = 48.8566;
-            const parisLon = 2.3522;
-            console.log("⚠️ Mode Secours Web activé : Paris Châtelet");
-            
-            setUserLocation({ lat: parisLat, lon: parisLon });
-            setUseLocationFilter(true);
-            await loadData(parisLat, parisLon, radiusKm);
-            
-            // On affiche une petite alerte pour prévenir que ce n'est pas le vrai GPS
-            alert("Impossible de vous localiser (Erreur Navigateur). Position par défaut utilisée (Paris) pour le test.");
+        // Construire le nom de la ville
+        const city = address.city || address.town || address.village || address.suburb;
+        const district = address.city_district;
+
+        if (city && district) {
+          return `${city}, ${district}`;
+        } else if (city) {
+          return city;
         } else {
-            setLocationError("Impossible de récupérer la position.");
-            setUseLocationFilter(false);
+          return `${lat.toFixed(3)}, ${lon.toFixed(3)}`;
         }
-      } finally {
-        setRequestingLocation(false);
       }
-    };
+    } catch (error) {
+      console.warn("Erreur reverse geocoding:", error);
+    }
+
+    // Fallback: afficher les coordonnées
+    return `${lat.toFixed(3)}, ${lon.toFixed(3)}`;
+  };
+
+  // Remplacez votre fonction requestLocation actuelle par celle-ci :
+  const requestLocation = async () => {
+    setLocationError(null);
+    setRequestingLocation(true);
+
+    try {
+      let lat, lon;
+
+      // --- SPÉCIFIQUE WEB : GESTION DES ERREURS ---
+      if (Platform.OS === "web") {
+        if (!navigator.geolocation) {
+          throw new Error("Géolocalisation non supportée.");
+        }
+
+        console.log("Tentative GPS Web...");
+
+        // Fonction utilitaire pour "promisifier" l'API Geolocation du navigateur
+        const getWebPosition = (options: PositionOptions): Promise<GeolocationPosition> => {
+          return new Promise((resolve, reject) => {
+            navigator.geolocation.getCurrentPosition(resolve, reject, options);
+          });
+        };
+
+        try {
+          // Tentative 1 : Précision moyenne (plus rapide et compatible PC/Wi-Fi)
+          // timeout: 10000 (10s) pour laisser le temps au Wi-Fi de trianguler
+          const pos = await getWebPosition({ enableHighAccuracy: false, timeout: 10000 });
+          lat = pos.coords.latitude;
+          lon = pos.coords.longitude;
+        } catch (err) {
+          console.warn("Échec GPS Web standard, tentative Haute Précision...", err);
+          // Tentative 2 : Haute précision (si dispo)
+          const pos = await getWebPosition({ enableHighAccuracy: true, timeout: 10000 });
+          lat = pos.coords.latitude;
+          lon = pos.coords.longitude;
+        }
+
+      }
+      // --- LOGIQUE MOBILE (Inchangée car elle marche) ---
+      else {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== "granted") {
+          throw new Error("Permission refusée sur mobile");
+        }
+        const loc = await Location.getCurrentPositionAsync({});
+        lat = loc.coords.latitude;
+        lon = loc.coords.longitude;
+      }
+
+      // SUCCÈS : On a la position
+      console.log("Position trouvée :", lat, lon);
+      setUserLocation({ lat, lon });
+      setUseLocationFilter(true);
+
+      // Récupérer le nom de la ville
+      const cityName = await getCityName(lat, lon);
+      setLocationName(cityName);
+      console.log("Ville :", cityName);
+
+      // IMPORTANT : On recharge la liste avec la nouvelle position pour mettre à jour les scores
+      await loadData(lat, lon, radiusKm);
+
+    } catch (err: any) {
+      console.error("ERREUR GÉOLOCALISATION :", err);
+
+      // --- PLAN B (UNIQUEMENT SUR LE WEB) ---
+      // Si tout échoue sur le web, on place l'utilisateur à Paris pour ne pas bloquer le test
+      if (Platform.OS === 'web') {
+        const parisLat = 48.8566;
+        const parisLon = 2.3522;
+        console.log("⚠️ Mode Secours Web activé : Paris Châtelet");
+
+        setUserLocation({ lat: parisLat, lon: parisLon });
+        setLocationName("Paris, Centre");
+        setUseLocationFilter(true);
+        await loadData(parisLat, parisLon, radiusKm);
+
+        // On affiche une petite alerte pour prévenir que ce n'est pas le vrai GPS
+        alert("Impossible de vous localiser (Erreur Navigateur). Position par défaut utilisée (Paris) pour le test.");
+      } else {
+        setLocationError("Impossible de récupérer la position.");
+        setUseLocationFilter(false);
+      }
+    } finally {
+      setRequestingLocation(false);
+    }
+  };
   // --- RENDUS ITEMS ---
 
   const renderSuggestionItem = ({ item }: { item: any }) => (
     <TouchableOpacity
       style={styles.suggestionItem}
-      onPress={() => { 
-          Keyboard.dismiss(); 
-          setSearchText(item.name);
-          setIsSearching(true);
+      onPress={() => {
+        Keyboard.dismiss();
+        setSearchText(item.name);
+        setIsSearching(true);
       }}
     >
       <Ionicons name="search-outline" size={20} color={colors.inactive} />
@@ -304,10 +349,10 @@ export const SearchView = ({ onRestaurantSelect }: SearchViewProps) => {
 
   const renderCardItem = ({ item }: { item: any }) => (
     <View style={{ flex: 1, maxWidth: `${100 / numColumns}%` }}>
-        <RestaurantCard
-          restaurant={item}
-          onPress={() => onRestaurantSelect && onRestaurantSelect(item)}
-        />
+      <RestaurantCard
+        restaurant={item}
+        onPress={() => onRestaurantSelect && onRestaurantSelect(item)}
+      />
     </View>
   );
 
@@ -329,42 +374,122 @@ export const SearchView = ({ onRestaurantSelect }: SearchViewProps) => {
   if (loading) return <View style={[styles.container, styles.center]}><ActivityIndicator size="large" color={colors.primary} /></View>;
 
   const HeaderComponent = () => (
-    <View style={{ backgroundColor: "#fff", paddingBottom: spacing.medium }}>
+    <View style={{ backgroundColor: "#fff" }}>
       <View style={styles.header}>
+        {/* Location & Profile */}
+        <View style={styles.locationRow}>
+          <TouchableOpacity
+            style={styles.locationLeft}
+            onPress={requestLocation}
+            disabled={requestingLocation}
+          >
+            <Text style={styles.locationLabel}>Localisation</Text>
+            <View style={styles.locationValue}>
+              <Ionicons name="location" size={14} color={colors.primary || "#6B4EFF"} />
+              {requestingLocation ? (
+                <ActivityIndicator size="small" color={colors.primary || "#6B4EFF"} style={{ marginLeft: 4 }} />
+              ) : (
+                <>
+                  <Text style={styles.locationText}>
+                    {locationName || (userLocation
+                      ? `${userLocation.lat.toFixed(3)}, ${userLocation.lon.toFixed(3)}`
+                      : "Activer la localisation")}
+                  </Text>
+                  <Ionicons name="chevron-down" size={12} color={colors.primary || "#6B4EFF"} style={{ marginLeft: 2 }} />
+                </>
+              )}
+            </View>
+          </TouchableOpacity>
+          <View style={styles.profilePic}>
+            <Ionicons name="person" size={24} color="#9CA3AF" style={{ alignSelf: "center", marginTop: 6 }} />
+          </View>
+        </View>
+
+        {/* Main Title */}
+        <Text style={styles.mainTitle}>
+          Grave faim ?{"\n"}
+          <Text style={styles.mainTitleOrange}>Viens Graye !</Text>
+        </Text>
+
+        {/* Search Bar */}
         <View style={styles.searchBarContainer}>
-          <Ionicons name="search" size={20} color={colors.primary} style={{ marginRight: 8 }} />
+          <Ionicons name="search" size={20} color="#9CA3AF" />
           <TextInput
             style={styles.searchInput}
-            placeholder="Rechercher un restaurant..."
-            placeholderTextColor="#999"
+            placeholder="Sushi, Burger, Tacos..."
+            placeholderTextColor="#9CA3AF"
             value={searchText}
             onChangeText={handleSearchChange}
             autoCapitalize="none"
             returnKeyType="search"
             onSubmitEditing={() => { Keyboard.dismiss(); setIsSearching(true); }}
           />
-          {searchText.length > 0 && (
+          {searchText.length > 0 ? (
             <TouchableOpacity onPress={clearSearch} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-              <Ionicons name="close-circle" size={20} color="#999" />
+              <Ionicons name="close-circle" size={20} color="#9CA3AF" />
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity style={styles.filterButton} onPress={() => setShowFilters((v) => !v)}>
+              <Ionicons name="options" size={20} color={colors.primary || "#6B4EFF"} />
             </TouchableOpacity>
           )}
         </View>
-        
-        {(!isSearching && searchText.length < 3) && (
-          <View style={styles.headerRow}>
-            <Text style={styles.subtitle}>{filteredRestaurants.length} restaurants triés par pertinence</Text>
-            <TouchableOpacity style={[styles.filterToggle, showFilters && styles.filterToggleActive]} onPress={() => setShowFilters((v) => !v)}>
-              <Ionicons name="options-outline" size={16} color={showFilters ? "#fff" : colors.text} style={{ marginRight: 6 }} />
-              <Text style={[styles.filterToggleText, showFilters && styles.filterToggleTextActive]}>Filtres {activeFiltersCount ? `(${activeFiltersCount})` : ""}</Text>
-              <Ionicons name={showFilters ? "chevron-up" : "chevron-down"} size={16} color={showFilters ? "#fff" : colors.text} style={{ marginLeft: 4 }} />
-            </TouchableOpacity>
-          </View>
-        )}
       </View>
+
+      {/* Category Pills */}
+      {(!isSearching && searchText.length < 3) && (
+        <View style={styles.categoriesContainer}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={[styles.categoriesScroll, { paddingHorizontal: spacing.large }]}
+          >
+            <TouchableOpacity
+              style={[styles.categoryPill, selectedCategories.length === 0 && styles.categoryPillActive]}
+              onPress={() => setSelectedCategories([])}
+            >
+              <Text style={styles.categoryEmoji}>🔥</Text>
+              <Text style={[styles.categoryText, selectedCategories.length === 0 && styles.categoryTextActive]}>Pour toi</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.categoryPill, selectedCategories.includes("burger") && styles.categoryPillActive]}
+              onPress={() => toggleCategory("burger")}
+            >
+              <Text style={styles.categoryEmoji}>🍔</Text>
+              <Text style={[styles.categoryText, selectedCategories.includes("burger") && styles.categoryTextActive]}>Burgers</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.categoryPill, selectedCategories.includes("japonais") && styles.categoryPillActive]}
+              onPress={() => toggleCategory("japonais")}
+            >
+              <Text style={styles.categoryEmoji}>🍣</Text>
+              <Text style={[styles.categoryText, selectedCategories.includes("japonais") && styles.categoryTextActive]}>Jap'</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.categoryPill, selectedCategories.includes("healthy") && styles.categoryPillActive]}
+              onPress={() => toggleCategory("healthy")}
+            >
+              <Text style={styles.categoryEmoji}>🥗</Text>
+              <Text style={[styles.categoryText, selectedCategories.includes("healthy") && styles.categoryTextActive]}>Healthy</Text>
+            </TouchableOpacity>
+          </ScrollView>
+        </View>
+      )}
+
+      {/* Section "Nos recommandations" header in main list */}
+      {(!isSearching && searchText.length < 3) && (
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Nos recommandations</Text>
+          <Text style={styles.sectionLink}>Voir tout</Text>
+        </View>
+      )}
 
       {showFilters && (!isSearching || searchText.length < 3) && (
         <View style={styles.filtersContainer}>
-           <View style={styles.filterRow}>
+          <View style={styles.filterRow}>
             <Text style={styles.filterLabel}>Autour de moi</Text>
             <View style={styles.chipsRow}>
               <TouchableOpacity style={[styles.chip, useLocationFilter && styles.chipActive]} onPress={() => { if (useLocationFilter) { setUseLocationFilter(false); } else { requestLocation(); } }}>
@@ -373,23 +498,23 @@ export const SearchView = ({ onRestaurantSelect }: SearchViewProps) => {
               </TouchableOpacity>
               {useLocationFilter && (
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsRow}>
-                  {RADIUS_OPTIONS.map((opt) => { 
-                      const active = radiusKm === opt; 
-                      return ( 
-                        <TouchableOpacity 
-                            key={opt} 
-                            style={[styles.chip, active && styles.chipActive]} 
-                            onPress={() => {
-                                setRadiusKm(opt);
-                                // Si on a déjà la position, on recharge avec le nouveau rayon pour l'algo
-                                if (userLocation) {
-                                    loadData(userLocation.lat, userLocation.lon, opt);
-                                }
-                            }}
-                        >
-                            <Text style={[styles.chipText, active && styles.chipTextActive]}>{opt} km</Text>
-                        </TouchableOpacity> 
-                      ); 
+                  {RADIUS_OPTIONS.map((opt) => {
+                    const active = radiusKm === opt;
+                    return (
+                      <TouchableOpacity
+                        key={opt}
+                        style={[styles.chip, active && styles.chipActive]}
+                        onPress={() => {
+                          setRadiusKm(opt);
+                          // Si on a déjà la position, on recharge avec le nouveau rayon pour l'algo
+                          if (userLocation) {
+                            loadData(userLocation.lat, userLocation.lon, opt);
+                          }
+                        }}
+                      >
+                        <Text style={[styles.chipText, active && styles.chipTextActive]}>{opt} km</Text>
+                      </TouchableOpacity>
+                    );
                   })}
                 </ScrollView>
               )}
@@ -405,7 +530,7 @@ export const SearchView = ({ onRestaurantSelect }: SearchViewProps) => {
           <View style={styles.filterRow}>
             <Text style={styles.filterLabel}>Type de cuisine</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsRow}>
-              {categoryOptions.map((cat) => { const active = selectedCategories.includes(cat); return ( <TouchableOpacity key={cat} onPress={() => toggleCategory(cat)} style={[styles.chip, active && styles.chipActive]}><Text style={[styles.chipText, active && styles.chipTextActive]}>{formatLabel(cat)}</Text></TouchableOpacity> ); })}
+              {categoryOptions.map((cat) => { const active = selectedCategories.includes(cat); return (<TouchableOpacity key={cat} onPress={() => toggleCategory(cat)} style={[styles.chip, active && styles.chipActive]}><Text style={[styles.chipText, active && styles.chipTextActive]}>{formatLabel(cat)}</Text></TouchableOpacity>); })}
             </ScrollView>
           </View>
           {locationError ? <Text style={styles.errorText}>{locationError}</Text> : null}
@@ -418,18 +543,18 @@ export const SearchView = ({ onRestaurantSelect }: SearchViewProps) => {
   return (
     <View style={styles.container}>
       {(!isSearching && searchText.length >= 3 && suggestions.length > 0) ? (
-         <>
-           <HeaderComponent />
-           <View style={styles.suggestionsContainer}>
+        <>
+          <HeaderComponent />
+          <View style={styles.suggestionsContainer}>
             <Text style={styles.suggestionsHeader}>Suggestions</Text>
-            <FlatList 
-                data={suggestions} 
-                renderItem={renderSuggestionItem} 
-                keyExtractor={(item, index) => (item.id ? item.id.toString() : index.toString())} 
-                keyboardShouldPersistTaps="handled" 
+            <FlatList
+              data={suggestions}
+              renderItem={renderSuggestionItem}
+              keyExtractor={(item, index) => (item.id ? item.id.toString() : index.toString())}
+              keyboardShouldPersistTaps="handled"
             />
-           </View>
-         </>
+          </View>
+        </>
       ) : (
         <FlatList
           data={paginatedData}
@@ -440,7 +565,7 @@ export const SearchView = ({ onRestaurantSelect }: SearchViewProps) => {
           ListHeaderComponent={HeaderComponent}
           ListFooterComponent={renderPaginationFooter}
           keyboardDismissMode="on-drag"
-          
+
           key={`grid-${numColumns}`}
           numColumns={numColumns}
           columnWrapperStyle={isGrid ? { gap: 20 } : undefined}
@@ -455,40 +580,305 @@ export const SearchView = ({ onRestaurantSelect }: SearchViewProps) => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background || "#f8f9fa" },
+  container: { flex: 1, backgroundColor: "#FFFFFF" },
   center: { justifyContent: "center", alignItems: "center" },
-  header: { paddingHorizontal: spacing.large, paddingTop: Platform.OS === 'ios' ? 60 : 50 },
-  searchBarContainer: { flexDirection: "row", alignItems: "center", backgroundColor: "#f0f2f5", borderRadius: 12, paddingHorizontal: 12, height: 44 },
-  searchInput: { flex: 1, fontSize: 16, color: colors.text, height: "100%", paddingVertical: 0 },
-  subtitle: { fontSize: 12, color: "#888", marginTop: 8, marginLeft: 4 },
-  headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 10, marginTop: 10 },
-  filterToggle: { flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 14, backgroundColor: "#f0f2f5" },
-  filterToggleActive: { backgroundColor: colors.primary },
-  filterToggleText: { color: colors.text, fontWeight: "700", fontSize: 12 },
-  filterToggleTextActive: { color: "#fff" },
-  filtersContainer: { paddingHorizontal: spacing.large, paddingVertical: spacing.medium, backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#eee", gap: spacing.medium },
+
+  // Header moderne style Graye
+  header: {
+    paddingHorizontal: spacing.large,
+    paddingTop: Platform.OS === 'ios' ? 60 : 50,
+    paddingBottom: 16,
+    backgroundColor: "#FFFFFF",
+  },
+
+  // Location section
+  locationRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  locationLeft: {
+    flex: 1,
+  },
+  locationLabel: {
+    fontSize: 11,
+    color: "#9CA3AF",
+    fontWeight: "500",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  locationValue: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 2,
+  },
+  locationText: {
+    fontSize: 14,
+    color: colors.primary || "#6B4EFF",
+    fontWeight: "700",
+  },
+  profilePic: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: "#FF8C00",
+  },
+
+  // Titre principal
+  mainTitle: {
+    fontSize: 24,
+    fontWeight: "900",
+    color: "#1F2937",
+    lineHeight: 30,
+    marginBottom: 16,
+  },
+  mainTitleOrange: {
+    color: "#FF8C00",
+  },
+
+  // Barre de recherche moderne
+  searchBarContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F5F5F7",
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    height: 52,
+    marginBottom: 16,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    color: "#1F2937",
+    fontWeight: "500",
+    height: "100%",
+    paddingVertical: 0,
+    marginLeft: 8,
+  },
+  filterButton: {
+    backgroundColor: "#FFFFFF",
+    padding: 8,
+    borderRadius: 12,
+    marginLeft: 8,
+  },
+
+  // Categories Pills
+  categoriesContainer: {
+    marginBottom: 16,
+  },
+  categoriesScroll: {
+    gap: 12,
+  },
+  categoryPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
+    backgroundColor: "#F3F4F6",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+  categoryPillActive: {
+    backgroundColor: colors.primary || "#6B4EFF",
+    borderColor: colors.primary || "#6B4EFF",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#6B4EFF",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
+  },
+  categoryEmoji: {
+    fontSize: 16,
+    marginRight: 6,
+  },
+  categoryText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#6B7280",
+  },
+  categoryTextActive: {
+    color: "#FFFFFF",
+  },
+
+  // Section header
+  sectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-end",
+    paddingHorizontal: spacing.large,
+    marginBottom: 16,
+    marginTop: 8,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#1F2937",
+  },
+  sectionLink: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: colors.primary || "#6B4EFF",
+  },
+
+  // Filtres avancés (panneau déroulant)
+  filtersContainer: {
+    paddingHorizontal: spacing.large,
+    paddingVertical: spacing.medium,
+    backgroundColor: "#F9FAFB",
+    borderBottomWidth: 1,
+    borderBottomColor: "#E5E7EB",
+    gap: spacing.medium,
+    marginBottom: 8,
+  },
   filterRow: { gap: spacing.small },
-  filterLabel: { fontSize: 14, fontWeight: "700", color: colors.text },
+  filterLabel: { fontSize: 14, fontWeight: "700", color: "#374151" },
   chipsRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 8 },
-  chip: { flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 14, backgroundColor: "#f0f2f5" },
-  chipActive: { backgroundColor: colors.primary },
-  chipText: { color: colors.text, fontWeight: "700", fontSize: 12 },
-  chipTextActive: { color: "#fff" },
-  listContent: { padding: spacing.medium, paddingBottom: 40, gap: 20 },
-  paginationContainer: { flexDirection: "row", justifyContent: "center", alignItems: "center", marginTop: spacing.medium, marginBottom: spacing.large, gap: 20 },
-  pageButton: { width: 40, height: 40, borderRadius: 20, backgroundColor: "#fff", justifyContent: "center", alignItems: "center", borderWidth: 1, borderColor: "#eee", elevation: 1 },
-  pageButtonDisabled: { backgroundColor: "#f9f9f9", borderColor: "#f0f0f0", elevation: 0 },
-  pageText: { fontSize: 14, fontWeight: "700", color: colors.text },
-  pageTextTotal: { color: "#888", fontWeight: "400" },
-  suggestionsContainer: { flex: 1, paddingHorizontal: spacing.large, paddingTop: spacing.medium },
-  suggestionsHeader: { fontSize: 14, fontWeight: "600", color: "#888", marginBottom: 10, textTransform: "uppercase", letterSpacing: 1 },
-  suggestionItem: { flexDirection: "row", alignItems: "center", paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: "#eee" },
+  chip: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 14,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+  chipActive: {
+    backgroundColor: colors.primary || "#6B4EFF",
+    borderColor: colors.primary || "#6B4EFF",
+  },
+  chipText: { color: "#374151", fontWeight: "700", fontSize: 12 },
+  chipTextActive: { color: "#FFFFFF" },
+
+  // Liste
+  listContent: {
+    padding: spacing.medium,
+    paddingBottom: 40,
+    gap: 20,
+    backgroundColor: "#FFFFFF",
+  },
+
+  // Pagination
+  paginationContainer: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: spacing.medium,
+    marginBottom: spacing.large,
+    gap: 20,
+  },
+  pageButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#FFFFFF",
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
+  },
+  pageButtonDisabled: {
+    backgroundColor: "#F9FAFB",
+    borderColor: "#E5E7EB",
+  },
+  pageText: { fontSize: 14, fontWeight: "700", color: "#1F2937" },
+  pageTextTotal: { color: "#9CA3AF", fontWeight: "400" },
+
+  // Suggestions
+  suggestionsContainer: {
+    flex: 1,
+    paddingHorizontal: spacing.large,
+    paddingTop: spacing.medium,
+    backgroundColor: "#FFFFFF",
+  },
+  suggestionsHeader: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#9CA3AF",
+    marginBottom: 10,
+    textTransform: "uppercase",
+    letterSpacing: 1,
+  },
+  suggestionItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F3F4F6",
+  },
   suggestionTextContainer: { flex: 1, marginLeft: 12 },
-  suggestionTitle: { fontSize: 16, fontWeight: "600", color: colors.text },
-  suggestionSubtitle: { fontSize: 13, color: "#888" },
-  emptySearch: { paddingTop: 40, alignItems: "center" },
-  emptyText: { color: "#888", fontStyle: "italic", textAlign: "center" },
-  errorText: { color: "#d14343", fontSize: 12 },
-  locatingRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  locatingText: { color: colors.text, fontSize: 13 },
+  suggestionTitle: { fontSize: 16, fontWeight: "600", color: "#1F2937" },
+  suggestionSubtitle: { fontSize: 13, color: "#9CA3AF", marginTop: 2 },
+
+  // Empty state
+  emptySearch: { paddingTop: 60, alignItems: "center", paddingHorizontal: 40 },
+  emptyText: {
+    color: "#9CA3AF",
+    fontSize: 15,
+    textAlign: "center",
+    lineHeight: 22,
+  },
+
+  // Erreurs et états de chargement
+  errorText: { color: "#EF4444", fontSize: 12, marginTop: 4 },
+  locatingRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 8 },
+  locatingText: { color: "#6B7280", fontSize: 13 },
+
+  // Filter toggle button
+  filterToggle: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 16,
+    backgroundColor: "#F3F4F6",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+  filterToggleActive: {
+    backgroundColor: colors.primary || "#6B4EFF",
+    borderColor: colors.primary || "#6B4EFF",
+  },
+  filterToggleText: {
+    color: "#374151",
+    fontWeight: "700",
+    fontSize: 12,
+    marginLeft: 4,
+  },
+  filterToggleTextActive: { color: "#FFFFFF" },
+
+  subtitle: {
+    fontSize: 12,
+    color: "#9CA3AF",
+    marginTop: 0,
+    flex: 1,
+  },
+  headerRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 10,
+    marginTop: 12,
+  },
 });
