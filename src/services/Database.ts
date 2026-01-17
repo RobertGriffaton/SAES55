@@ -44,8 +44,8 @@ export const getAllUsers = async (): Promise<any[]> => {
 
 // 6. ALGORITHME & INTERACTIONS
 export const logInteraction = async (
-  restaurantId: number, 
-  cuisine: string, 
+  restaurantId: number,
+  cuisine: string,
   action: InteractionAction
 ): Promise<void> => {
   return Promise.resolve();
@@ -61,4 +61,29 @@ export const getDB = () => {
 };
 export const getRestaurantPopularity = async (): Promise<Record<number, number>> => {
   return Promise.resolve({});
+};
+
+// 8. FAVORIS
+export const addFavorite = async (restaurantId: number, userId?: string): Promise<void> => {
+  return Promise.resolve();
+};
+
+export const removeFavorite = async (restaurantId: number, userId?: string): Promise<void> => {
+  return Promise.resolve();
+};
+
+export const validateFavorite = async (restaurantId: number, userId?: string): Promise<void> => {
+  return Promise.resolve();
+};
+
+export const unvalidateFavorite = async (restaurantId: number, userId?: string): Promise<void> => {
+  return Promise.resolve();
+};
+
+export const getFavorites = async (userId?: string, validated?: boolean): Promise<any[]> => {
+  return Promise.resolve([]);
+};
+
+export const isFavorite = async (restaurantId: number, userId?: string): Promise<boolean> => {
+  return Promise.resolve(false);
 };

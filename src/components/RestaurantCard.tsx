@@ -4,8 +4,9 @@ import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing } from "../styles/theme";
 
 // --- MAPPING DES IMAGES ---
+// Les valeurs peuvent être soit une image unique, soit un TABLEAU d'images [ ]
 const CATEGORY_IMAGES: Record<string, any> = {
-  // --- MARQUES (Priorité Haute) ---
+  // --- MARQUES (Priorité Haute - Image Unique) ---
   "mcdonald's": require("../../assets/imagescover/mcdo.png"),
   "kfc": require("../../assets/imagescover/kfc.png"),
   "quick": require("../../assets/imagescover/quick.png"),
@@ -14,12 +15,25 @@ const CATEGORY_IMAGES: Record<string, any> = {
   "chicken_spot": require("../../assets/imagescover/chickenspot.png"),
   "burger_king": require("../../assets/imagescover/burgerking.png"),
 
-  // --- CATÉGORIES GÉNÉRIQUES ---
+  // --- CATÉGORIES AVEC VARIATIONS (Tableaux d'images) ---
+  // Ajoutez autant de variantes que vous avez dans vos assets
+  "burger": [
+    require("../../assets/imagescover/burger.png"),
+    require("../../assets/imagescover/burger2.png"),
+    // require("../../assets/imagescover/burger3.png"),
+  ],
+  "pizza": [
+    require("../../assets/imagescover/pizza.png"),
+    require("../../assets/imagescover/pizza2.png"),
+  ],
+  "japonais": [
+    require("../../assets/imagescover/japonais.png"),
+    // require("../../assets/imagescover/sushi.png"),
+  ],
+
+  // --- CATÉGORIES GÉNÉRIQUES (Image Unique) ---
   "francais": require("../../assets/imagescover/francais.png"),
-  "pizza": require("../../assets/imagescover/pizza.png"),
-  "japonais": require("../../assets/imagescover/japonais.png"),
   "italien": require("../../assets/imagescover/italien.png"),
-  "burger": require("../../assets/imagescover/burger.png"),
   "asiatique": require("../../assets/imagescover/asiatique.png"),
   "kebab": require("../../assets/imagescover/kebab.png"),
   "chinois": require("../../assets/imagescover/chinois.png"),
@@ -67,7 +81,7 @@ export const RestaurantCard = ({ restaurant, onPress }: RestaurantCardProps) => 
   const imageSource = useMemo(() => {
     let candidates: string[] = [];
 
-    // 1. PRIORITÉ : MARQUE (ex: "McDonald's")
+    // 1. PRIORITÉ : MARQUE
     if (restaurant.brand) {
         candidates.push(String(restaurant.brand));
     }
@@ -76,7 +90,7 @@ export const RestaurantCard = ({ restaurant, onPress }: RestaurantCardProps) => 
         candidates.push(String(restaurant.name));
     }
 
-    // 3. CUISINES (Gestion tableau ou chaine)
+    // 3. CUISINES
     const cuisinesData = restaurant.cuisines || restaurant.cuisine;
     if (cuisinesData) {
       const cuisineString = Array.isArray(cuisinesData) ? cuisinesData.join(",") : String(cuisinesData);
@@ -95,21 +109,38 @@ export const RestaurantCard = ({ restaurant, onPress }: RestaurantCardProps) => 
         .replace(/ /g, "_")
         .replace(/-/g, "_");
 
-      // Test exact (ex: "mcdonald's")
-      if (CATEGORY_IMAGES[cleanKey]) {
-        return CATEGORY_IMAGES[cleanKey];
-      }
+      // Test exact
+      let found = CATEGORY_IMAGES[cleanKey];
       
-      // Test sans apostrophe (ex: "mcdonalds")
-      const noApostrophe = cleanKey.replace(/'/g, "");
-      if (CATEGORY_IMAGES[noApostrophe]) {
-        return CATEGORY_IMAGES[noApostrophe];
+      // Test sans apostrophe
+      if (!found) {
+         const noApostrophe = cleanKey.replace(/'/g, "");
+         found = CATEGORY_IMAGES[noApostrophe];
+      }
+
+      if (found) {
+        // --- LOGIQUE HASARD STABLE ---
+        // Si c'est un tableau, on choisit une image basée sur le nom du restaurant.
+        // Cela garantit que le même restaurant a toujours la même image (pas de clignotement au scroll).
+        if (Array.isArray(found)) {
+            const nameToHash = restaurant.name || "default";
+            let hash = 0;
+            for (let i = 0; i < nameToHash.length; i++) {
+                hash = nameToHash.charCodeAt(i) + ((hash << 5) - hash);
+            }
+            // Modulo pour avoir un index valide (0, 1, 2...)
+            const index = Math.abs(hash) % found.length;
+            return found[index];
+        }
+        
+        // Si c'est une image unique
+        return found;
       }
     }
     return null;
   }, [restaurant]);
 
-  // Affichage propre des cuisines (Array ou String)
+  // Affichage propre des cuisines
   const displayCuisines = (restaurant.cuisines || restaurant.cuisine)
     ? (Array.isArray(restaurant.cuisine) ? restaurant.cuisine.join(" • ") : String(restaurant.cuisines).replace(/,/g, " • "))
     : (restaurant.type ? String(restaurant.type).replace(/_/g, " ") : "");
@@ -120,7 +151,6 @@ export const RestaurantCard = ({ restaurant, onPress }: RestaurantCardProps) => 
       onPress={onPress}
       activeOpacity={0.9}
     >
-      {/* 1. SECTION IMAGE */}
       <View style={styles.imageContainer}>
         {imageSource ? (
           <Image 
@@ -135,22 +165,17 @@ export const RestaurantCard = ({ restaurant, onPress }: RestaurantCardProps) => 
         )}
       </View>
 
-      {/* 2. SECTION INFORMATIONS */}
       <View style={styles.contentContainer}>
-        
-        {/* Titre */}
         <View style={styles.headerRow}>
           <Text style={styles.name} numberOfLines={1}>
             {restaurant.name || "Restaurant sans nom"}
           </Text>
         </View>
 
-        {/* Cuisines */}
         <Text style={styles.details} numberOfLines={1}>
           {displayCuisines}
         </Text>
 
-        {/* Badges */}
         <View style={styles.badgesRow}>
            <View style={styles.ratingBadge}>
               <Text style={styles.ratingText}>4.5 ★</Text>
@@ -170,7 +195,6 @@ export const RestaurantCard = ({ restaurant, onPress }: RestaurantCardProps) => 
             </View>
           )}
           
-           {/* Vérification flexible pour le Takeaway (String ou Bool) */}
            {(restaurant.takeaway === 1 || restaurant.takeaway === "yes" || restaurant.takeaway === true) && (
             <View style={[styles.badge, { backgroundColor: "#FFF4E5" }]}>
               <Ionicons name="basket" size={12} color="orange" />
@@ -190,11 +214,7 @@ const styles = StyleSheet.create({
     marginBottom: 20, 
     flexDirection: "column", 
     overflow: "hidden", 
-    
-    // IMPORTANT pour le mode grille sur PC
     width: "100%",
-
-    // Ombres
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.08,
@@ -203,10 +223,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#f0f0f0",
   },
-  
   imageContainer: {
     width: "100%",
-    // Ratio 16/9 pour adaptation mobile/PC parfaite
     aspectRatio: 16 / 9, 
     backgroundColor: "#f0f0f0",
     position: "relative",
@@ -222,57 +240,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-
-  contentContainer: {
-    padding: 12,
-  },
-  
-  headerRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 4,
-  },
-  name: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: colors.text || "#000",
-    flex: 1,
-  },
-  details: {
-    fontSize: 14,
-    color: "#666",
-    marginBottom: 10,
-    textTransform: 'capitalize'
-  },
-  
-  badgesRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    flexWrap: "wrap",
-    gap: 8,
-  },
-  badge: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 100,
-    gap: 4,
-  },
-  badgeText: {
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  ratingBadge: {
-    backgroundColor: "#f5f5f5",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 100,
-  },
-  ratingText: {
-    fontSize: 12,
-    fontWeight: "bold",
-    color: "#333",
-  },
+  contentContainer: { padding: 12 },
+  headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 4 },
+  name: { fontSize: 18, fontWeight: "bold", color: colors.text || "#000", flex: 1 },
+  details: { fontSize: 14, color: "#666", marginBottom: 10, textTransform: 'capitalize' },
+  badgesRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 8 },
+  badge: { flexDirection: "row", alignItems: "center", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 100, gap: 4 },
+  badgeText: { fontSize: 12, fontWeight: "600" },
+  ratingBadge: { backgroundColor: "#f5f5f5", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 100 },
+  ratingText: { fontSize: 12, fontWeight: "bold", color: "#333" },
 });
