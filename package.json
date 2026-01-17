@@ -29,6 +29,7 @@
   "devDependencies": {
     "@types/leaflet": "^1.9.21",
     "@types/react": "~19.1.0",
+    "baseline-browser-mapping": "^2.9.15",
     "typescript": "~5.9.2"
   },
   "private": true

@@ -5,6 +5,12 @@ import { colors, spacing } from "../styles/theme";
 
 // --- MAPPING DES IMAGES ---
 const CATEGORY_IMAGES: Record<string, any> = {
+  // --- MARQUES (Priorité Haute) ---
+  "mcdonald's": require("../../assets/imagescover/mcdo.png"),
+  "kfc": require("../../assets/imagescover/kfc.png"),
+  "quick": require("../../assets/imagescover/quick.png"),
+
+  // --- CATÉGORIES GÉNÉRIQUES ---
   "francais": require("../../assets/imagescover/francais.png"),
   "pizza": require("../../assets/imagescover/pizza.png"),
   "japonais": require("../../assets/imagescover/japonais.png"),
@@ -56,10 +62,25 @@ export const RestaurantCard = ({ restaurant, onPress }: RestaurantCardProps) => 
 
   const imageSource = useMemo(() => {
     let candidates: string[] = [];
-    if (restaurant?.cuisines) {
-      candidates = [...candidates, ...String(restaurant.cuisines).split(",")];
+
+    // 1. PRIORITÉ : MARQUE (ex: "McDonald's")
+    if (restaurant.brand) {
+        candidates.push(String(restaurant.brand));
     }
-    if (restaurant?.type) {
+    // 2. PRIORITÉ : NOM
+    if (restaurant.name) {
+        candidates.push(String(restaurant.name));
+    }
+
+    // 3. CUISINES (Gestion tableau ou chaine)
+    const cuisinesData = restaurant.cuisines || restaurant.cuisine;
+    if (cuisinesData) {
+      const cuisineString = Array.isArray(cuisinesData) ? cuisinesData.join(",") : String(cuisinesData);
+      candidates = [...candidates, ...cuisineString.split(",")];
+    }
+    
+    // 4. TYPE
+    if (restaurant.type) {
       candidates.push(String(restaurant.type));
     }
 
@@ -70,16 +91,23 @@ export const RestaurantCard = ({ restaurant, onPress }: RestaurantCardProps) => 
         .replace(/ /g, "_")
         .replace(/-/g, "_");
 
+      // Test exact (ex: "mcdonald's")
       if (CATEGORY_IMAGES[cleanKey]) {
         return CATEGORY_IMAGES[cleanKey];
+      }
+      
+      // Test sans apostrophe (ex: "mcdonalds")
+      const noApostrophe = cleanKey.replace(/'/g, "");
+      if (CATEGORY_IMAGES[noApostrophe]) {
+        return CATEGORY_IMAGES[noApostrophe];
       }
     }
     return null;
   }, [restaurant]);
 
-  // Textes sécurisés
-  const displayCuisines = restaurant.cuisines
-    ? String(restaurant.cuisines).replace(/,/g, " • ")
+  // Affichage propre des cuisines (Array ou String)
+  const displayCuisines = (restaurant.cuisines || restaurant.cuisine)
+    ? (Array.isArray(restaurant.cuisine) ? restaurant.cuisine.join(" • ") : String(restaurant.cuisines).replace(/,/g, " • "))
     : (restaurant.type ? String(restaurant.type).replace(/_/g, " ") : "");
 
   return (
@@ -138,7 +166,8 @@ export const RestaurantCard = ({ restaurant, onPress }: RestaurantCardProps) => 
             </View>
           )}
           
-           {restaurant.takeaway === 1 && (
+           {/* Vérification flexible pour le Takeaway (String ou Bool) */}
+           {(restaurant.takeaway === 1 || restaurant.takeaway === "yes" || restaurant.takeaway === true) && (
             <View style={[styles.badge, { backgroundColor: "#FFF4E5" }]}>
               <Ionicons name="basket" size={12} color="orange" />
               <Text style={[styles.badgeText, { color: "orange" }]}>Emporter</Text>
@@ -173,8 +202,7 @@ const styles = StyleSheet.create({
   
   imageContainer: {
     width: "100%",
-    // IMPORTANT : On utilise le ratio 16/9 au lieu d'une hauteur fixe
-    // Ça permet d'avoir une belle image sur mobile ET sur PC (pas d'étirement moche)
+    // Ratio 16/9 pour adaptation mobile/PC parfaite
     aspectRatio: 16 / 9, 
     backgroundColor: "#f0f0f0",
     position: "relative",
