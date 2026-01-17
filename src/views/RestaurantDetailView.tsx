@@ -229,35 +229,53 @@ export const RestaurantDetailView = ({ restaurant, onBack }: RestaurantDetailPro
 
             {/* Info Row: Rating, Price, Type */}
             <View style={styles.infoRow}>
-              <View style={styles.ratingBox}>
-                <Ionicons name="star" size={14} color="#FBBF24" />
-                <Text style={styles.ratingText}>4.8</Text>
-                <Text style={styles.reviewCount}>(124 avis)</Text>
-              </View>
-              <View style={styles.dot} />
-              <Text style={styles.priceRange}>€€</Text>
+              {restaurant.rating ? (
+                <View style={styles.ratingBox}>
+                  <Ionicons name="star" size={14} color="#FBBF24" />
+                  <Text style={styles.ratingText}>{restaurant.rating}</Text>
+                  {restaurant.review_count && (
+                    <Text style={styles.reviewCount}>({restaurant.review_count} avis)</Text>
+                  )}
+                </View>
+              ) : null}
+              {restaurant.rating && <View style={styles.dot} />}
+              <Text style={styles.priceRange}>
+                {restaurant.price_range || restaurant.price || '€€'}
+              </Text>
               <View style={styles.dot} />
               <Text style={styles.cuisineType}>{displayCuisines}</Text>
             </View>
 
             {/* Tags */}
             <View style={styles.tagsRow}>
-              {restaurant.vegetarian === 1 && (
+              {(restaurant.vegetarian === 1 || restaurant.vegetarian === "yes") && (
                 <View style={[styles.tag, styles.tagGreen]}>
                   <Ionicons name="leaf" size={10} color="#15803D" />
-                  <Text style={styles.tagTextGreen}>Option Végé</Text>
+                  <Text style={styles.tagTextGreen}>Végé</Text>
                 </View>
               )}
-              {(restaurant.takeaway === "yes" || restaurant.takeaway === 1 || restaurant.takeaway === true) && (
+              {(restaurant.vegan === 1 || restaurant.vegan === "yes") && (
+                <View style={[styles.tag, styles.tagGreen]}>
+                  <Ionicons name="leaf" size={10} color="#15803D" />
+                  <Text style={styles.tagTextGreen}>Végan</Text>
+                </View>
+              )}
+              {(restaurant.takeaway === "yes" || restaurant.takeaway === 1 || restaurant.takeaway === "only") && (
                 <View style={[styles.tag, styles.tagOrange]}>
-                  <Ionicons name="checkmark-circle" size={10} color="#C2410C" />
+                  <Ionicons name="bag-handle" size={10} color="#C2410C" />
                   <Text style={styles.tagTextOrange}>À emporter</Text>
+                </View>
+              )}
+              {(restaurant.delivery === "yes" || restaurant.delivery === 1) && (
+                <View style={[styles.tag, styles.tagBlue]}>
+                  <Ionicons name="bicycle" size={10} color="#1D4ED8" />
+                  <Text style={styles.tagTextBlue}>Livraison</Text>
                 </View>
               )}
               {restaurant.wheelchair === "yes" && (
                 <View style={[styles.tag, styles.tagGray]}>
                   <Ionicons name="accessibility" size={10} color="#4B5563" />
-                  <Text style={styles.tagTextGray}>Accès PMR</Text>
+                  <Text style={styles.tagTextGray}>PMR</Text>
                 </View>
               )}
               {restaurant.internet_access && (
@@ -297,9 +315,14 @@ export const RestaurantDetailView = ({ restaurant, onBack }: RestaurantDetailPro
                   <Ionicons name="location" size={14} color="#6B4EFF" />
                 </View>
                 <View>
-                  <Text style={styles.infoCardLabel}>DISTANCE</Text>
-                  <Text style={styles.infoCardValue}>
-                    {formattedDistance || `${restaurant.lat?.toFixed(3)}, ${restaurant.lon?.toFixed(3)}`}
+                  <Text style={styles.infoCardLabel}>LOCALISATION</Text>
+                  <Text style={styles.infoCardValue} numberOfLines={1}>
+                    {formattedDistance
+                      ? formattedDistance
+                      : restaurant.meta_name_com
+                        ? restaurant.meta_name_com
+                        : "Voir sur la carte"
+                    }
                   </Text>
                 </View>
               </View>
@@ -581,6 +604,15 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     color: '#4B5563',
+  },
+  tagBlue: {
+    backgroundColor: '#EFF6FF',
+    borderColor: '#BFDBFE',
+  },
+  tagTextBlue: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#1D4ED8',
   },
 
   // Section
