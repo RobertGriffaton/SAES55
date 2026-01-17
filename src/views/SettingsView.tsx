@@ -52,18 +52,10 @@ const CUISINES_WITH_EMOJIS: { id: Cuisine; emoji: string; label: string }[] = [
 ];
 
 // Régimes disponibles
-const DIETS: { id: Diet; label: string }[] = [
-  { id: "Halal", label: "Halal" },
+const DIETS: { id: Diet; label: string; emoji?: string }[] = [
+  { id: "Aucune", label: "Aucun", emoji: "🚫" },
   { id: "Végétarien", label: "Végétarien" },
-  { id: "Sans gluten", label: "Sans Gluten" },
   { id: "Végan", label: "Végan" },
-];
-
-// Niveaux de budget
-const BUDGETS: { level: number; symbol: string; label: string }[] = [
-  { level: 1, symbol: "€", label: "Fauché" },
-  { level: 2, symbol: "€€", label: "Normal" },
-  { level: 3, symbol: "€€€", label: "Riche" },
 ];
 
 // Titres de niveau
@@ -86,7 +78,6 @@ export const SettingsView = () => {
   const [loading, setLoading] = useState(true);
 
   // États pour les préférences
-  const [selectedBudget, setSelectedBudget] = useState(1);
   const [selectedDiet, setSelectedDiet] = useState<Diet>("Aucune");
   const [selectedCuisines, setSelectedCuisines] = useState<Cuisine[]>([]);
   const [distanceKm, setDistanceKm] = useState(5);
@@ -111,7 +102,6 @@ export const SettingsView = () => {
     if (active) {
       // Charger les préférences du profil actif
       const prefs = active.preferences;
-      setSelectedBudget(prefs.budgetEuro <= 10 ? 1 : prefs.budgetEuro <= 25 ? 2 : 3);
       setSelectedDiet(prefs.diet);
       setSelectedCuisines(prefs.cuisines);
       setDistanceKm(prefs.distanceKm);
@@ -198,11 +188,8 @@ export const SettingsView = () => {
   const handleSavePreferences = async () => {
     if (!activeProfile) return;
 
-    const budgetValue = selectedBudget === 1 ? 10 : selectedBudget === 2 ? 20 : 40;
-
     const newPrefs: UserPreferences = {
       ...activeProfile.preferences,
-      budgetEuro: budgetValue,
       diet: selectedDiet,
       cuisines: selectedCuisines,
       distanceKm: distanceKm,
@@ -516,42 +503,6 @@ export const SettingsView = () => {
           </TouchableOpacity>
         )}
 
-        {/* Section Budget */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>
-            <Ionicons name="wallet" size={14} color={colors.grayePurple} /> Ton Budget
-          </Text>
-          <View style={styles.budgetRow}>
-            {BUDGETS.map((budget) => (
-              <TouchableOpacity
-                key={budget.level}
-                style={[
-                  styles.budgetBtn,
-                  selectedBudget === budget.level && styles.budgetBtnSelected,
-                ]}
-                onPress={() => setSelectedBudget(budget.level)}
-              >
-                <Text
-                  style={[
-                    styles.budgetSymbol,
-                    selectedBudget === budget.level && styles.budgetSymbolSelected,
-                  ]}
-                >
-                  {budget.symbol}
-                </Text>
-                <Text
-                  style={[
-                    styles.budgetLabel,
-                    selectedBudget === budget.level && styles.budgetLabelSelected,
-                  ]}
-                >
-                  {budget.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-
         {/* Section Régime */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>
@@ -569,6 +520,9 @@ export const SettingsView = () => {
               >
                 {selectedDiet === diet.id && (
                   <Ionicons name="checkmark" size={14} color="#fff" style={{ marginRight: 4 }} />
+                )}
+                {diet.emoji && (
+                  <Text style={{ marginRight: 4 }}>{diet.emoji}</Text>
                 )}
                 <Text
                   style={[
