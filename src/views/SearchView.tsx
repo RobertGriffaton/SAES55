@@ -479,14 +479,7 @@ export const SearchView = ({ onRestaurantSelect }: SearchViewProps) => {
         </View>
       )}
 
-      {/* Section "Nos recommandations" header in main list */}
-      {(!isSearching && searchText.length < 3) && (
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Nos recommandations</Text>
-          <Text style={styles.sectionLink}>Voir tout</Text>
-        </View>
-      )}
-
+      {/* Filtres avancés - affiché après les category pills */}
       {showFilters && (!isSearching || searchText.length < 3) && (
         <View style={styles.filtersContainer}>
           <View style={styles.filterRow}>
@@ -535,6 +528,14 @@ export const SearchView = ({ onRestaurantSelect }: SearchViewProps) => {
           </View>
           {locationError ? <Text style={styles.errorText}>{locationError}</Text> : null}
           {requestingLocation && (<View style={styles.locatingRow}><ActivityIndicator size="small" color={colors.primary} /><Text style={styles.locatingText}>Recherche de votre position...</Text></View>)}
+        </View>
+      )}
+
+      {/* Section "Nos recommandations" header */}
+      {(!isSearching && searchText.length < 3) && (
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Nos recommandations</Text>
+          <Text style={styles.sectionLink}>Voir tout</Text>
         </View>
       )}
     </View>
