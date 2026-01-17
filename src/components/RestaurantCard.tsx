@@ -9,6 +9,10 @@ const CATEGORY_IMAGES: Record<string, any> = {
   "mcdonald's": require("../../assets/imagescover/mcdo.png"),
   "kfc": require("../../assets/imagescover/kfc.png"),
   "quick": require("../../assets/imagescover/quick.png"),
+  "starbucks": require("../../assets/imagescover/starbucks.png"),
+  "subway": require("../../assets/imagescover/subway.png"),
+  "chicken_spot": require("../../assets/imagescover/chickenspot.png"),
+  "burger_king": require("../../assets/imagescover/burgerking.png"),
 
   // --- CATÉGORIES GÉNÉRIQUES ---
   "francais": require("../../assets/imagescover/francais.png"),
