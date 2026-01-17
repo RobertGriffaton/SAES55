@@ -25,7 +25,7 @@ export const MapViewComponent = ({ onRestaurantSelect }: MapViewProps) => {
 
   const webViewRef = useRef<WebView>(null);
 
-  // 1. Initialisation GPS (Optimisée V2 : Stratégie Économe)
+  // 1. Initialisation GPS
   useEffect(() => {
     (async () => {
       try {
@@ -39,11 +39,9 @@ export const MapViewComponent = ({ onRestaurantSelect }: MapViewProps) => {
           return;
         }
 
-        // --- OPTIMISATION V2 ---
-        // On tente d'abord la dernière position connue pour économiser la batterie
+        // Optimisation : On tente d'abord la dernière position connue
         let location = await Location.getLastKnownPositionAsync({});
 
-        // Si pas de dernière position (ex: redémarrage), on lance le GPS avec précision équilibrée
         if (!location) {
           console.log("[Map] Pas de cache GPS, localisation active...");
           location = await Location.getCurrentPositionAsync({
@@ -70,7 +68,7 @@ export const MapViewComponent = ({ onRestaurantSelect }: MapViewProps) => {
     })();
   }, []);
 
-  // 2. Debounce (Attendre que l'utilisateur finisse de taper)
+  // 2. Debounce pour la recherche
   useEffect(() => {
     const delayDebounceFn = setTimeout(() => {
       if (searchText.length > 3) {
@@ -84,17 +82,13 @@ export const MapViewComponent = ({ onRestaurantSelect }: MapViewProps) => {
   }, [searchText]);
 
 
-  // 3. --- NOUVELLE API : ADRESSE.DATA.GOUV.FR ---
+  // 3. API Adresse Data Gouv
   const fetchAddressSuggestions = async (query: string) => {
     setIsSearching(true);
     try {
-        // Cette API est spécialisée pour la France et gère les fautes de frappe
         const url = `https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(query)}&limit=5&autocomplete=1`;
-        
         const response = await fetch(url);
         const json = await response.json();
-        
-        // L'API renvoie un tableau "features" (format GeoJSON)
         setSuggestions(json.features || []);
     } catch (e) {
         console.warn("Erreur API Adresse", e);
@@ -113,13 +107,10 @@ export const MapViewComponent = ({ onRestaurantSelect }: MapViewProps) => {
     }
   };
 
-  // 5. Sélection d'une adresse (Adapté au GeoJSON)
+  // 5. Sélection d'une adresse
   const handleSelectAddress = (item: any) => {
-    // GeoJSON met les coordonnées dans l'ordre [Longitude, Latitude] !
     const lon = item.geometry.coordinates[0];
     const lat = item.geometry.coordinates[1];
-    
-    // Le label complet (ex: "25 Rue de la Résistance 95200 Sarcelles")
     const label = item.properties.label;
 
     setSearchText(label);
@@ -148,7 +139,8 @@ export const MapViewComponent = ({ onRestaurantSelect }: MapViewProps) => {
     }
   };
 
-  // HTML DE LA CARTE
+  // HTML DE LA CARTE LEAFLET
+  // J'ai ajouté une règle CSS pour décaler .leaflet-top vers le bas (top: 120px)
   const mapHtml = `
     <!DOCTYPE html>
     <html>
@@ -159,6 +151,11 @@ export const MapViewComponent = ({ onRestaurantSelect }: MapViewProps) => {
         <style>
           body { margin: 0; padding: 0; }
           #map { width: 100%; height: 100vh; background: #e1e1e1; }
+          
+          /* FIX: On décale les contrôles du haut (Zoom) pour qu'ils ne soient pas sous la barre de recherche */
+          .leaflet-top {
+            top: 120px; 
+          }
         </style>
       </head>
       <body>
@@ -284,7 +281,6 @@ export const MapViewComponent = ({ onRestaurantSelect }: MapViewProps) => {
                     renderItem={({ item }) => (
                         <TouchableOpacity style={styles.suggestionItem} onPress={() => handleSelectAddress(item)}>
                             <Ionicons name="location-outline" size={16} color={colors.primary} style={{marginRight:8}} />
-                            {/* On affiche le label complet fourni par l'API Gouv */}
                             <Text numberOfLines={1} style={{flex:1}}>{item.properties.label}</Text>
                         </TouchableOpacity>
                     )}
@@ -320,6 +316,7 @@ export const MapViewComponent = ({ onRestaurantSelect }: MapViewProps) => {
          <Ionicons name="refresh" size={24} color={colors.primary} />
       </TouchableOpacity>
 
+      {/* LÉGENDE */}
       <View style={styles.legend}>
         <Text style={styles.legendText}>{restaurants.length} restos trouvés</Text>
       </View>
@@ -329,6 +326,7 @@ export const MapViewComponent = ({ onRestaurantSelect }: MapViewProps) => {
 
 export { MapViewComponent as MapView };
 
+// --- STYLES ---
 const styles = StyleSheet.create({
   container: { flex: 1 },
   map: { flex: 1 },
@@ -362,7 +360,7 @@ const styles = StyleSheet.create({
   gpsText: { fontSize: 12, fontWeight: 'bold', color: colors.primary, marginLeft: 4 },
 
   radiusControls: {
-    position: 'absolute', bottom: 100, right: 20,
+    position: 'absolute', bottom: 140, right: 20,
     alignItems: 'center', gap: 10,
   },
   radiusBadge: { backgroundColor: 'white', padding: 8, borderRadius: 20, elevation: 4 },
@@ -373,14 +371,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center', alignItems: 'center', elevation: 4,
   },
   btnText: { fontSize: 20, fontWeight: 'bold' },
+  
   legend: {
-    position: 'absolute', bottom: 30, alignSelf: 'center',
+    position: 'absolute', bottom: 90, alignSelf: 'center',
     backgroundColor: 'rgba(255, 255, 255, 0.95)',
     padding: 10, borderRadius: 25, elevation: 4
   },
   legendText: { fontWeight: "bold", color: colors.text },
+  
   refreshBtn: {
-    position: 'absolute', bottom: 100, left: 20,
+    position: 'absolute', bottom: 140, left: 20,
     backgroundColor: 'white', padding: 10, borderRadius: 30, elevation: 5
   }
 });

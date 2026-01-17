@@ -22,17 +22,35 @@ import { getAllRestaurants } from "../services/Database";
 import { RestaurantCard } from "../components/RestaurantCard";
 import * as Location from "expo-location";
 
+// --- 1. INTERFACE DE SAUVEGARDE ---
+export interface SearchSessionState {
+  restaurants: any[];
+  userLocation: { lat: number; lon: number } | null;
+  locationName: string | null;
+  useLocationFilter: boolean;
+  radiusKm: number;
+  searchText: string;
+  selectedCategories: string[];
+  takeawayOnly: boolean;
+  onSiteOnly: boolean;
+}
+
 interface SearchViewProps {
   onRestaurantSelect?: (restaurant: any) => void;
+  // --- 2. PROPS POUR LA SAUVEGARDE ---
+  savedState?: SearchSessionState | null;
+  onSaveState?: (state: SearchSessionState) => void;
 }
 
 const ITEMS_PER_PAGE = 10;
 const MAX_SUGGESTIONS = 7;
 const RADIUS_OPTIONS = [2, 5, 10, 20];
 
-export const SearchView = ({ onRestaurantSelect }: SearchViewProps) => {
-  const [allRestaurants, setAllRestaurants] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+export const SearchView = ({ onRestaurantSelect, savedState, onSaveState }: SearchViewProps) => {
+  // --- 3. INITIALISATION AVEC savedState ---
+  const [allRestaurants, setAllRestaurants] = useState<any[]>(savedState?.restaurants || []);
+  // Si on a déjà des restaurants, on ne met pas loading à true par défaut
+  const [loading, setLoading] = useState(savedState?.restaurants && savedState.restaurants.length > 0 ? false : true);
 
   // --- RESPONSIVE : Calcul des colonnes ---
   const { width } = useWindowDimensions();
@@ -41,23 +59,46 @@ export const SearchView = ({ onRestaurantSelect }: SearchViewProps) => {
 
   // --- ÉTATS DE FILTRES & PAGINATION ---
   const [currentPage, setCurrentPage] = useState(1);
-  const [searchText, setSearchText] = useState("");
+  const [searchText, setSearchText] = useState(savedState?.searchText || "");
   const [isSearching, setIsSearching] = useState(false);
 
-  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
-  const [takeawayOnly, setTakeawayOnly] = useState(false);
-  const [onSiteOnly, setOnSiteOnly] = useState(false);
-  const [useLocationFilter, setUseLocationFilter] = useState(false);
-  const [userLocation, setUserLocation] = useState<{ lat: number; lon: number } | null>(null);
-  const [locationName, setLocationName] = useState<string | null>(null);
-  const [radiusKm, setRadiusKm] = useState<number>(5);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>(savedState?.selectedCategories || []);
+  const [takeawayOnly, setTakeawayOnly] = useState(savedState?.takeawayOnly || false);
+  const [onSiteOnly, setOnSiteOnly] = useState(savedState?.onSiteOnly || false);
+  
+  // États de localisation restaurés
+  const [useLocationFilter, setUseLocationFilter] = useState(savedState?.useLocationFilter || false);
+  const [userLocation, setUserLocation] = useState<{ lat: number; lon: number } | null>(savedState?.userLocation || null);
+  const [locationName, setLocationName] = useState<string | null>(savedState?.locationName || null);
+  const [radiusKm, setRadiusKm] = useState<number>(savedState?.radiusKm || 5);
+  
   const [locationError, setLocationError] = useState<string | null>(null);
   const [requestingLocation, setRequestingLocation] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
 
+  // --- 4. EFFET DE SAUVEGARDE AUTOMATIQUE ---
+  useEffect(() => {
+    if (onSaveState) {
+      onSaveState({
+        restaurants: allRestaurants,
+        userLocation: userLocation,
+        locationName: locationName,
+        useLocationFilter: useLocationFilter,
+        radiusKm: radiusKm,
+        searchText: searchText,
+        selectedCategories: selectedCategories,
+        takeawayOnly: takeawayOnly,
+        onSiteOnly: onSiteOnly
+      });
+    }
+  }, [allRestaurants, userLocation, locationName, useLocationFilter, radiusKm, searchText, selectedCategories, takeawayOnly, onSiteOnly]);
+
   // --- CHARGEMENT INTELLIGENT ---
   useEffect(() => {
-    loadData();
+    // On ne charge que si la liste est vide (évite le rechargement au retour)
+    if (allRestaurants.length === 0) {
+      loadData();
+    }
   }, []);
 
   // Fonction de chargement qui accepte des coordonnées pour recalculer le score

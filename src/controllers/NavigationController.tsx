@@ -8,7 +8,8 @@ import FavoritesView from "../views/FavoritesView";
 import { MapView } from "../views/MapView.native";
 import { OnboardingPreferencesView } from "../views/OnboardingPreferencesView";
 import { RestaurantDetailView } from "../views/RestaurantDetailView";
-import { SearchView } from "../views/SearchView";
+// On importe aussi l'interface SearchSessionState
+import { SearchView, SearchSessionState } from "../views/SearchView";
 import { SettingsView } from "../views/SettingsView";
 import { hasCompletedOnboarding, setOnboardingDone } from "./PreferencesController";
 
@@ -28,6 +29,9 @@ export const NavigationController = () => {
   const [showOnboarding, setShowOnboarding] = useState(true);
   const [activeTab, setActiveTab] = useState<TabType>("map"); 
   const [selectedRestaurant, setSelectedRestaurant] = useState<any | null>(null);
+
+  // --- NOUVEAU : Stockage de la session de recherche ---
+  const [searchSession, setSearchSession] = useState<SearchSessionState | null>(null);
 
   useEffect(() => {
     const checkOnboarding = async () => {
@@ -76,7 +80,14 @@ export const NavigationController = () => {
     }
     if (activeTab === "search") {
         if (!SearchView) return <Text>ERREUR: SearchView est mal importé.</Text>;
-        return <SearchView onRestaurantSelect={handleSelectRestaurant} />;
+        // --- MODIFICATION : On passe l'état sauvegardé et la fonction de sauvegarde ---
+        return (
+          <SearchView 
+            onRestaurantSelect={handleSelectRestaurant} 
+            savedState={searchSession}
+            onSaveState={setSearchSession}
+          />
+        );
     }
     if (activeTab === "favorites") {
         if (!FavoritesView) return <Text>ERREUR: FavoritesView est mal importé.</Text>;
