@@ -1,4 +1,4 @@
-export type TabType = "map" | "search" | "settings";
+export type TabType = "map" | "search" | "favorites" | "settings";
 
 export interface Tab {
   id: TabType;
@@ -9,5 +9,6 @@ export interface Tab {
 export const tabs: Tab[] = [
   { id: "map", label: "Map", iconName: "map" },
   { id: "search", label: "Search", iconName: "search" },
-  { id: "settings", label: "Settings", iconName: "settings" },
+  { id: "favorites", label: "Favorites", iconName: "heart" },
+  { id: "settings", label: "Settings", iconName: "cog" },
 ];
