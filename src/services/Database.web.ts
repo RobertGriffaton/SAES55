@@ -1,9 +1,10 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { UserPreferences } from '../models/PreferencesModel';
 
-// Clés de stockage pour les données personnalisées
+// Clés de stockage
 const DB_KEY_CUSTOM = 'food_reco_db_custom_v1';
 const DB_USERS_KEY = 'food_reco_users_v1';
+const DB_INTERACTIONS_KEY = 'food_reco_interactions_v1'; // Ajout pour sauvegarder les clics
 
 // Chargement du JSON statique en mémoire
 const rawData = require('../data/restaurants.json');
@@ -156,17 +157,74 @@ export const getRestaurantsNearby = async (lat: number, lon: number, radiusKm: n
   }
 };
 
-// Mise à jour de la signature pour accepter 'view' et 'website'
+// --- INTERACTION & ALGO (Mise à jour V2) ---
+
 export const logInteraction = async (
   restaurantId: number, 
   cuisine: string, 
   action: 'click' | 'call' | 'route' | 'view' | 'website'
 ) => {
-  console.log(`[Web Interaction] Action: ${action} sur cuisine: ${cuisine}`);
-  return Promise.resolve();
+  try {
+    const json = await AsyncStorage.getItem(DB_INTERACTIONS_KEY);
+    const history = json ? JSON.parse(json) : [];
+    
+    // On ajoute l'interaction
+    history.push({
+      restaurantId,
+      cuisine_tag: cuisine,
+      action_type: action,
+      timestamp: Date.now()
+    });
+
+    await AsyncStorage.setItem(DB_INTERACTIONS_KEY, JSON.stringify(history));
+    console.log(`[Web Interaction] Sauvegardée: ${action} sur ${restaurantId}`);
+  } catch (e) {
+    console.error("Erreur logInteraction web:", e);
+  }
 };
 
-export const getUserHabits = async () => {
-  console.log("[Web Algo] Récupération des habitudes (Vide)");
-  return Promise.resolve({});
+export const getUserHabits = async (): Promise<Record<string, number>> => {
+  try {
+    const json = await AsyncStorage.getItem(DB_INTERACTIONS_KEY);
+    const history = json ? JSON.parse(json) : [];
+    const habits: Record<string, number> = {};
+
+    history.forEach((h: any) => {
+       const tags = (h.cuisine_tag || "").split(',');
+       tags.forEach((t: string) => {
+           const cleanTag = t.trim().toLowerCase();
+           if(cleanTag) {
+               habits[cleanTag] = (habits[cleanTag] || 0) + 1;
+           }
+       });
+    });
+
+    console.log(`[Web Algo] ${Object.keys(habits).length} habitudes trouvées.`);
+    return habits;
+  } catch (e) {
+    return {};
+  }
+};
+
+// --- NOUVEAU : Fonction requise pour la "Fidélité" ---
+export const getRestaurantPopularity = async (): Promise<Record<number, number>> => {
+  try {
+    const json = await AsyncStorage.getItem(DB_INTERACTIONS_KEY);
+    const history = json ? JSON.parse(json) : [];
+    const popularity: Record<number, number> = {};
+
+    history.forEach((h: any) => {
+      // On ne compte que les actions engageantes comme sur mobile
+      if (['click', 'call', 'route', 'website'].includes(h.action_type)) {
+         const id = Number(h.restaurantId);
+         if (!isNaN(id)) {
+            popularity[id] = (popularity[id] || 0) + 1;
+         }
+      }
+    });
+
+    return popularity;
+  } catch (e) {
+    return {};
+  }
 };
