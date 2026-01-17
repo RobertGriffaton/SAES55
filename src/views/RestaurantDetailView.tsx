@@ -1,18 +1,19 @@
-import React, { useEffect, useMemo } from "react";
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  ScrollView, 
-  TouchableOpacity, 
-  Linking, 
+import React, { useEffect, useMemo, useState } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Linking,
   Image,
-  useWindowDimensions, 
-  Platform
+  useWindowDimensions,
+  Platform,
+  Animated
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing } from "../styles/theme";
-import { logInteraction } from "../services/Database"; 
+import { logInteraction } from "../services/Database";
 
 // --- MAPPING DES IMAGES ---
 const CATEGORY_IMAGES: Record<string, any> = {
@@ -48,7 +49,7 @@ const CATEGORY_IMAGES: Record<string, any> = {
   "africain": require("../../assets/imagescover/africain.png"),
   "bubble_tea": require("../../assets/imagescover/bubble_tea.png"),
   "fruits_de_mer": require("../../assets/imagescover/fruits_de_mer.png"),
-  "americain": require("../../assets/imagescover/americain.png"), 
+  "americain": require("../../assets/imagescover/americain.png"),
   "divers": require("../../assets/imagescover/divers.png"),
   "mediterranean": require("../../assets/imagescover/mediterranean.png"),
   "grec": require("../../assets/imagescover/grec.png"),
@@ -66,11 +67,12 @@ interface RestaurantDetailProps {
 
 export const RestaurantDetailView = ({ restaurant, onBack }: RestaurantDetailProps) => {
   const { width } = useWindowDimensions();
-  const isLargeScreen = width > 768; 
+  const isLargeScreen = width > 768;
+  const [isFavorite, setIsFavorite] = useState(false);
 
   useEffect(() => {
     if (restaurant && restaurant.id) {
-        logInteraction(restaurant.id, restaurant.cuisines, 'view');
+      logInteraction(restaurant.id, restaurant.cuisines, 'view');
     }
   }, [restaurant]);
 
@@ -78,26 +80,26 @@ export const RestaurantDetailView = ({ restaurant, onBack }: RestaurantDetailPro
   const imageSource = useMemo(() => {
     if (!restaurant) return null;
     let candidates: string[] = [];
-    
+
     // 1. BRAND (JSON field: "brand": "McDonald's")
     if (restaurant.brand) candidates.push(String(restaurant.brand));
     // 2. NAME
     if (restaurant.name) candidates.push(String(restaurant.name));
-    
+
     // 3. CUISINES (Gestion array ou string)
     const cuisinesData = restaurant.cuisines || restaurant.cuisine;
     if (cuisinesData) {
       const cuisineString = Array.isArray(cuisinesData) ? cuisinesData.join(",") : String(cuisinesData);
       candidates = [...candidates, ...cuisineString.split(",")];
     }
-    
+
     // 4. TYPE
     if (restaurant.type) candidates.push(String(restaurant.type));
 
     for (const rawKey of candidates) {
       const cleanKey = rawKey.trim().toLowerCase().replace(/ /g, "_").replace(/-/g, "_");
       if (CATEGORY_IMAGES[cleanKey]) return CATEGORY_IMAGES[cleanKey];
-      
+
       const noApostrophe = cleanKey.replace(/'/g, "");
       if (CATEGORY_IMAGES[noApostrophe]) return CATEGORY_IMAGES[noApostrophe];
     }
@@ -109,10 +111,16 @@ export const RestaurantDetailView = ({ restaurant, onBack }: RestaurantDetailPro
     ? (Array.isArray(restaurant.cuisine) ? restaurant.cuisine.join(", ") : String(restaurant.cuisines).replace(/,/g, ", "))
     : (restaurant.type ? String(restaurant.type).replace(/_/g, " ") : "Cuisine variée");
 
+  // Calcul du score de match (simulé basé sur les données)
+  const matchScore = useMemo(() => {
+    if (restaurant.score) return Math.round(restaurant.score);
+    return Math.floor(Math.random() * 20) + 80; // 80-100%
+  }, [restaurant]);
+
   const openLink = async (type: 'tel' | 'web' | 'map') => {
     const actionType = type === 'map' ? 'route' : (type === 'tel' ? 'call' : 'website');
     if (restaurant && restaurant.id) {
-        await logInteraction(restaurant.id, restaurant.cuisines, actionType);
+      await logInteraction(restaurant.id, restaurant.cuisines, actionType);
     }
 
     let url = '';
@@ -129,109 +137,576 @@ export const RestaurantDetailView = ({ restaurant, onBack }: RestaurantDetailPro
     if (url) Linking.openURL(url).catch(err => console.error("Erreur lien", err));
   };
 
+  const toggleFavorite = () => {
+    setIsFavorite(!isFavorite);
+    // TODO: Sauvegarder en base de données
+  };
+
+  // Calcul distance formatée
+  const formattedDistance = useMemo(() => {
+    if (restaurant.distance) {
+      const km = restaurant.distance;
+      if (km < 1) return `${Math.round(km * 1000)}m`;
+      return `${km.toFixed(1)}km`;
+    }
+    return null;
+  }, [restaurant]);
+
   return (
     <View style={[styles.rootContainer, isLargeScreen && { backgroundColor: "#f5f5f5" }]}>
       <View style={[styles.mainContainer, isLargeScreen && styles.mainContainerWeb]}>
-        
-        <View style={[
-          styles.imageContainer, 
-          isLargeScreen && { height: 350, borderTopLeftRadius: 16, borderTopRightRadius: 16, overflow: 'hidden' }
-        ]}>
+
+        {/* === IMAGE HEADER === */}
+        <View style={styles.imageContainer}>
           {imageSource ? (
-            <Image 
-              source={imageSource} 
-              style={styles.coverImage} 
-              resizeMode="cover" 
+            <Image
+              source={imageSource}
+              style={styles.coverImage}
+              resizeMode="cover"
             />
           ) : (
             <View style={styles.placeholderImage}>
               <Ionicons name="restaurant" size={60} color="#fff" />
             </View>
           )}
-          <TouchableOpacity style={styles.backButton} onPress={onBack} activeOpacity={0.8}>
-            <Ionicons name="arrow-back" size={24} color="#000" />
-          </TouchableOpacity>
+
+          {/* Gradient overlay en haut */}
+          <View style={styles.topGradient} />
+
+          {/* Boutons navigation */}
+          <View style={styles.headerButtons}>
+            <TouchableOpacity style={styles.headerBtn} onPress={onBack} activeOpacity={0.8}>
+              <Ionicons name="arrow-back" size={20} color="#fff" />
+            </TouchableOpacity>
+
+            <View style={styles.headerBtnGroup}>
+              <TouchableOpacity style={styles.headerBtn} activeOpacity={0.8}>
+                <Ionicons name="share-social" size={20} color="#fff" />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.headerBtn} onPress={toggleFavorite} activeOpacity={0.8}>
+                <Ionicons name={isFavorite ? "heart" : "heart-outline"} size={20} color={isFavorite ? "#FF6B6B" : "#fff"} />
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
 
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          <Text style={styles.title}>{restaurant.name}</Text>
-          <Text style={styles.subtitle}>
-            {restaurant.type?.replace('_', ' ')} • {displayCuisines}
-          </Text>
+        {/* === CONTENT SHEET === */}
+        <View style={styles.contentSheet}>
+          <ScrollView
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+          >
+            {/* Handle bar */}
+            <View style={styles.handleBar} />
 
-          <View style={styles.tagsRow}>
-            {restaurant.vegetarian === 1 && <Tag icon="leaf" label="Végétarien" color="green" />}
-            {restaurant.vegan === 1 && <Tag icon="nutrition" label="Végan" color="green" />}
-            {(restaurant.takeaway === "yes" || restaurant.takeaway === 1 || restaurant.takeaway === true) && <Tag icon="basket" label="A emporter" color="orange" />}
-            {restaurant.wheelchair === "yes" && <Tag icon="body" label="Accès PMR" color="blue" />}
+            {/* Title & Match Score */}
+            <View style={styles.titleRow}>
+              <Text style={styles.title} numberOfLines={2}>{restaurant.name}</Text>
+              <View style={styles.matchBadge}>
+                <View style={styles.matchDot} />
+                <Text style={styles.matchText}>{matchScore}% Match</Text>
+              </View>
+            </View>
+
+            {/* Info Row: Rating, Price, Type */}
+            <View style={styles.infoRow}>
+              <View style={styles.ratingBox}>
+                <Ionicons name="star" size={14} color="#FBBF24" />
+                <Text style={styles.ratingText}>4.8</Text>
+                <Text style={styles.reviewCount}>(124 avis)</Text>
+              </View>
+              <View style={styles.dot} />
+              <Text style={styles.priceRange}>€€</Text>
+              <View style={styles.dot} />
+              <Text style={styles.cuisineType}>{displayCuisines}</Text>
+            </View>
+
+            {/* Tags */}
+            <View style={styles.tagsRow}>
+              {restaurant.vegetarian === 1 && (
+                <View style={[styles.tag, styles.tagGreen]}>
+                  <Ionicons name="leaf" size={10} color="#15803D" />
+                  <Text style={styles.tagTextGreen}>Option Végé</Text>
+                </View>
+              )}
+              {(restaurant.takeaway === "yes" || restaurant.takeaway === 1 || restaurant.takeaway === true) && (
+                <View style={[styles.tag, styles.tagOrange]}>
+                  <Ionicons name="checkmark-circle" size={10} color="#C2410C" />
+                  <Text style={styles.tagTextOrange}>À emporter</Text>
+                </View>
+              )}
+              {restaurant.wheelchair === "yes" && (
+                <View style={[styles.tag, styles.tagGray]}>
+                  <Ionicons name="accessibility" size={10} color="#4B5563" />
+                  <Text style={styles.tagTextGray}>Accès PMR</Text>
+                </View>
+              )}
+              {restaurant.internet_access && (
+                <View style={[styles.tag, styles.tagGray]}>
+                  <Ionicons name="wifi" size={10} color="#4B5563" />
+                  <Text style={styles.tagTextGray}>Wifi</Text>
+                </View>
+              )}
+            </View>
+
+            {/* About Section */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>À propos</Text>
+              <Text style={styles.aboutText}>
+                {restaurant.description ||
+                  `Découvrez ${restaurant.name}, un lieu unique proposant une cuisine ${displayCuisines.toLowerCase()}. `}
+                <Text style={styles.seeMore}>Voir plus</Text>
+              </Text>
+            </View>
+
+            {/* Info Cards Grid */}
+            <View style={styles.infoGrid}>
+              <View style={styles.infoCard}>
+                <View style={styles.infoCardIcon}>
+                  <Ionicons name="time" size={14} color="#6B4EFF" />
+                </View>
+                <View>
+                  <Text style={styles.infoCardLabel}>HORAIRES</Text>
+                  <Text style={styles.infoCardValue}>
+                    {restaurant.opening_hours ? restaurant.opening_hours.split(';')[0] : "Voir horaires"}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.infoCard}>
+                <View style={styles.infoCardIcon}>
+                  <Ionicons name="location" size={14} color="#6B4EFF" />
+                </View>
+                <View>
+                  <Text style={styles.infoCardLabel}>DISTANCE</Text>
+                  <Text style={styles.infoCardValue}>
+                    {formattedDistance || `${restaurant.lat?.toFixed(3)}, ${restaurant.lon?.toFixed(3)}`}
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Contact info */}
+            {(restaurant.phone || restaurant.website) && (
+              <View style={styles.contactSection}>
+                {restaurant.phone && (
+                  <TouchableOpacity style={styles.contactRow} onPress={() => openLink('tel')}>
+                    <View style={styles.contactIcon}>
+                      <Ionicons name="call" size={16} color="#6B4EFF" />
+                    </View>
+                    <Text style={styles.contactText}>{restaurant.phone}</Text>
+                    <Ionicons name="chevron-forward" size={16} color="#9CA3AF" />
+                  </TouchableOpacity>
+                )}
+                {restaurant.website && (
+                  <TouchableOpacity style={styles.contactRow} onPress={() => openLink('web')}>
+                    <View style={styles.contactIcon}>
+                      <Ionicons name="globe" size={16} color="#6B4EFF" />
+                    </View>
+                    <Text style={styles.contactText} numberOfLines={1}>Visiter le site web</Text>
+                    <Ionicons name="chevron-forward" size={16} color="#9CA3AF" />
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
+
+            {/* Spacer for bottom button */}
+            <View style={{ height: 100 }} />
+          </ScrollView>
+
+          {/* === BOTTOM ACTION BUTTON === */}
+          <View style={styles.bottomAction}>
+            <TouchableOpacity
+              style={styles.actionButton}
+              onPress={() => openLink('map')}
+              activeOpacity={0.9}
+            >
+              <Ionicons name="navigate" size={20} color="#fff" />
+              <Text style={styles.actionButtonText}>Lancer l'itinéraire</Text>
+            </TouchableOpacity>
           </View>
-
-          <View style={styles.divider} />
-
-          <InfoRow icon="location" text={`${restaurant.lat?.toFixed(5)}, ${restaurant.lon?.toFixed(5)}`} />
-          {restaurant.phone && <InfoRow icon="call" text={restaurant.phone} onPress={() => openLink('tel')} isLink />}
-          {restaurant.website && <InfoRow icon="globe" text="Visiter le site web" onPress={() => openLink('web')} isLink />}
-          {restaurant.opening_hours && <InfoRow icon="time" text={restaurant.opening_hours} />}
-
-          <View style={styles.actionsRow}>
-            <ActionButton label="Y aller" icon="navigate" primary onPress={() => openLink('map')} />
-            {restaurant.phone && <ActionButton label="Appeler" icon="call" onPress={() => openLink('tel')} />}
-          </View>
-          <View style={{ height: 40 }} />
-        </ScrollView>
+        </View>
       </View>
     </View>
   );
 };
 
-// --- COMPOSANTS INTERNES ---
-const Tag = ({ label, icon, color }: any) => (
-  <View style={[styles.tag, { borderColor: color, backgroundColor: color + '10' }]}>
-    <Ionicons name={icon} size={14} color={color} />
-    <Text style={[styles.tagText, { color }]}>{label}</Text>
-  </View>
-);
-
-const InfoRow = ({ icon, text, onPress, isLink }: any) => (
-  <TouchableOpacity disabled={!onPress} onPress={onPress} style={styles.infoRow}>
-    <Ionicons name={icon} size={20} color={colors.inactive || '#888'} />
-    <Text style={[styles.infoText, isLink && { color: colors.primary, textDecorationLine: 'underline' }]}>
-      {text}
-    </Text>
-  </TouchableOpacity>
-);
-
-const ActionButton = ({ label, icon, primary, onPress }: any) => (
-  <TouchableOpacity style={[styles.actionButton, primary ? styles.btnPrimary : styles.btnSecondary]} onPress={onPress}>
-    <Ionicons name={icon} size={20} color={primary ? "#fff" : colors.text} />
-    <Text style={[styles.btnText, primary ? { color: "#fff" } : { color: colors.text }]}>{label}</Text>
-  </TouchableOpacity>
-);
-
-// --- STYLES (Identiques au précédent) ---
+// --- STYLES ---
 const styles = StyleSheet.create({
-  rootContainer: { flex: 1, backgroundColor: "#fff" },
-  mainContainer: { flex: 1, backgroundColor: "#fff", width: "100%" },
-  mainContainerWeb: {
-    alignSelf: "center", maxWidth: 800, marginTop: 20, marginBottom: 20, borderRadius: 16,
-    shadowColor: "#000", shadowOffset: {width: 0, height: 4}, shadowOpacity: 0.1, shadowRadius: 12, elevation: 5, overflow: 'hidden'
+  rootContainer: {
+    flex: 1,
+    backgroundColor: "#fff"
   },
-  imageContainer: { height: 250, backgroundColor: colors.primary, position: 'relative' },
-  coverImage: { width: '100%', height: '100%' },
-  placeholderImage: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#ddd' },
-  backButton: { position: 'absolute', top: Platform.OS === 'web' ? 20 : 50, left: 20, backgroundColor: '#fff', padding: 8, borderRadius: 20, elevation: 5, shadowColor: '#000', shadowOffset: {width:0, height:2}, shadowOpacity:0.2, shadowRadius:2, zIndex: 10 },
-  content: { padding: spacing.large || 20 },
-  title: { fontSize: 28, fontWeight: 'bold', color: colors.text, marginBottom: 4 },
-  subtitle: { fontSize: 16, color: colors.inactive || '#888', marginBottom: 16, textTransform: 'capitalize' },
-  tagsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 },
-  tag: { flexDirection: 'row', alignItems: 'center', gap: 4, borderWidth: 1, paddingVertical: 6, paddingHorizontal: 12, borderRadius: 20 },
-  tagText: { fontSize: 12, fontWeight: '600' },
-  divider: { height: 1, backgroundColor: '#eee', marginVertical: 16 },
-  infoRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 14 },
-  infoText: { fontSize: 16, color: colors.text, flex: 1 },
-  actionsRow: { flexDirection: 'row', gap: 12, marginTop: 10 },
-  actionButton: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 14, borderRadius: 12 },
-  btnPrimary: { backgroundColor: colors.primary },
-  btnSecondary: { backgroundColor: '#f0f0f0' },
-  btnText: { fontWeight: '600', fontSize: 16 },
+  mainContainer: {
+    flex: 1,
+    backgroundColor: "#fff",
+    width: "100%"
+  },
+  mainContainerWeb: {
+    alignSelf: "center",
+    maxWidth: 500,
+    marginTop: 20,
+    marginBottom: 20,
+    borderRadius: 40,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.15,
+    shadowRadius: 30,
+    elevation: 10,
+    overflow: 'hidden'
+  },
+
+  // Image Header
+  imageContainer: {
+    height: "42%",
+    backgroundColor: "#6B4EFF",
+    position: 'relative'
+  },
+  coverImage: {
+    width: '100%',
+    height: '100%'
+  },
+  placeholderImage: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#6B4EFF'
+  },
+  topGradient: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 100,
+    backgroundColor: 'transparent',
+    ...Platform.select({
+      web: { background: 'linear-gradient(to bottom, rgba(0,0,0,0.4), transparent)' },
+      default: {}
+    })
+  },
+  headerButtons: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 50 : 40,
+    left: 20,
+    right: 20,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    zIndex: 10
+  },
+  headerBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.3)',
+  },
+  headerBtnGroup: {
+    flexDirection: 'row',
+    gap: 12
+  },
+
+  // Content Sheet
+  contentSheet: {
+    flex: 1,
+    backgroundColor: '#fff',
+    marginTop: -40,
+    borderTopLeftRadius: 40,
+    borderTopRightRadius: 40,
+    position: 'relative',
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: -10 },
+        shadowOpacity: 0.1,
+        shadowRadius: 20,
+      },
+      android: {
+        elevation: 10,
+      },
+    }),
+  },
+  scrollContent: {
+    paddingHorizontal: 24,
+    paddingTop: 8,
+  },
+  handleBar: {
+    width: 48,
+    height: 5,
+    backgroundColor: '#E5E7EB',
+    borderRadius: 3,
+    alignSelf: 'center',
+    marginTop: 12,
+    marginBottom: 24,
+  },
+
+  // Title Row
+  titleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+    gap: 12,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: '900',
+    color: '#1F2937',
+    flex: 1,
+    lineHeight: 28,
+  },
+  matchBadge: {
+    backgroundColor: 'rgba(107, 78, 255, 0.1)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(107, 78, 255, 0.2)',
+  },
+  matchDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#6B4EFF',
+  },
+  matchText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#6B4EFF',
+  },
+
+  // Info Row
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  ratingBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  ratingText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1F2937',
+  },
+  reviewCount: {
+    fontSize: 14,
+    color: '#9CA3AF',
+  },
+  dot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#D1D5DB',
+  },
+  priceRange: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1F2937',
+  },
+  cuisineType: {
+    fontSize: 14,
+    color: '#6B7280',
+    textTransform: 'capitalize',
+  },
+
+  // Tags
+  tagsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 24
+  },
+  tag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  tagGreen: {
+    backgroundColor: '#F0FDF4',
+    borderColor: '#BBF7D0',
+  },
+  tagTextGreen: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#15803D',
+  },
+  tagOrange: {
+    backgroundColor: '#FFF7ED',
+    borderColor: '#FED7AA',
+  },
+  tagTextOrange: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#C2410C',
+  },
+  tagGray: {
+    backgroundColor: '#F9FAFB',
+    borderColor: '#E5E7EB',
+  },
+  tagTextGray: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#4B5563',
+  },
+
+  // Section
+  section: {
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#1F2937',
+    marginBottom: 8,
+  },
+  aboutText: {
+    fontSize: 14,
+    color: '#6B7280',
+    lineHeight: 22,
+  },
+  seeMore: {
+    color: '#6B4EFF',
+    fontWeight: '700',
+  },
+
+  // Info Grid
+  infoGrid: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 24,
+  },
+  infoCard: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: '#F9FAFB',
+    padding: 12,
+    borderRadius: 16,
+  },
+  infoCardIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.08,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
+  },
+  infoCardLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#9CA3AF',
+    letterSpacing: 0.5,
+  },
+  infoCardValue: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#1F2937',
+    marginTop: 2,
+  },
+
+  // Contact Section
+  contactSection: {
+    backgroundColor: '#F9FAFB',
+    borderRadius: 16,
+    overflow: 'hidden',
+    marginBottom: 24,
+  },
+  contactRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  contactIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  contactText: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1F2937',
+  },
+
+  // Bottom Action
+  bottomAction: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: '#fff',
+    padding: 20,
+    paddingBottom: Platform.OS === 'ios' ? 34 : 20,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: -10 },
+        shadowOpacity: 0.05,
+        shadowRadius: 20,
+      },
+      android: {
+        elevation: 10,
+      },
+    }),
+  },
+  actionButton: {
+    backgroundColor: '#FF8C00',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    paddingVertical: 18,
+    borderRadius: 16,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#FF8C00",
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.35,
+        shadowRadius: 16,
+      },
+      android: {
+        elevation: 8,
+      },
+    }),
+  },
+  actionButtonText: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#fff',
+  },
 });

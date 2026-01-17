@@ -1,79 +1,129 @@
-import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
-import { colors, fontSize, spacing } from "../styles/theme";
+import { FontAwesome } from "@expo/vector-icons";
+import { StyleSheet, TouchableOpacity, View } from "react-native";
 
-type TabType = "map" | "search" | "settings";
+type TabType = "map" | "search" | "favorites" | "settings";
 
 interface BottomNavBarProps {
   activeTab: TabType;
   onTabChange: (tab: TabType) => void;
 }
 
-const tabs = [
-  { id: "map", label: "Map", iconName: "map" },
-  { id: "search", label: "Search", iconName: "search" },
-  { id: "settings", label: "Settings", iconName: "settings" },
-];
-
 export const BottomNavBar = ({ activeTab, onTabChange }: BottomNavBarProps) => {
   return (
-    <View style={styles.navbar}>
-      {tabs.map((tab) => (
-        <TouchableOpacity
-          key={tab.id}
-          style={styles.navItem}
-          onPress={() => onTabChange(tab.id as TabType)}
+    <View style={styles.container}>
+      <View style={styles.innerContainer}>
+        
+        {/* Map */}
+        <TouchableOpacity 
+          onPress={() => onTabChange("map")}
+          style={styles.button}
+          activeOpacity={0.7}
         >
-          <Ionicons
-            name={tab.iconName as any}
-            size={24}
-            color={activeTab === tab.id ? colors.primary : colors.inactive}
-          />
-          <Text
-            style={[
-              styles.navText,
-              activeTab === tab.id && styles.navTextActive,
-            ]}
-          >
-            {tab.label}
-          </Text>
+          <View style={[
+            styles.iconContainer,
+            activeTab === "map" && styles.iconContainerActive
+          ]}>
+            <FontAwesome 
+              name="map" 
+              size={18} 
+              color={activeTab === "map" ? "#6B4EFF" : "#9CA3AF"} 
+            />
+          </View>
         </TouchableOpacity>
-      ))}
+
+        {/* Home / Recommendations */}
+        <TouchableOpacity 
+          onPress={() => onTabChange("search")}
+          style={styles.button}
+          activeOpacity={0.7}
+        >
+          <View style={[
+            styles.iconContainer,
+            activeTab === "search" && styles.iconContainerActive
+          ]}>
+            <FontAwesome 
+              name="home" 
+              size={24} 
+              color={activeTab === "search" ? "#6B4EFF" : "#9CA3AF"} 
+            />
+          </View>
+        </TouchableOpacity>
+
+        {/* Favorites - Cœur Violet */}
+        <TouchableOpacity 
+          onPress={() => onTabChange("favorites")}
+          style={styles.button}
+          activeOpacity={0.7}
+        >
+          <View style={[
+            styles.iconContainer,
+            activeTab === "favorites" && styles.iconContainerActivePurple
+          ]}>
+            <FontAwesome 
+              name="heart" 
+              size={20} 
+              color={activeTab === "favorites" ? "#6B4EFF" : "#9CA3AF"} 
+            />
+          </View>
+        </TouchableOpacity>
+
+        {/* Settings */}
+        <TouchableOpacity 
+          onPress={() => onTabChange("settings")}
+          style={styles.button}
+          activeOpacity={0.7}
+        >
+          <View style={[
+            styles.iconContainer,
+            activeTab === "settings" && styles.iconContainerActive
+          ]}>
+            <FontAwesome 
+              name="cog" 
+              size={24} 
+              color={activeTab === "settings" ? "#6B4EFF" : "#9CA3AF"} 
+            />
+          </View>
+        </TouchableOpacity>
+
+      </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  navbar: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    alignItems: "center",
-    backgroundColor: colors.background,
-    paddingVertical: spacing.medium,
-    paddingBottom: spacing.large,
+  container: {
+    position: 'absolute',
+    bottom: 0,
+    width: '100%',
+    backgroundColor: 'white',
     borderTopWidth: 1,
-    borderTopColor: colors.border,
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: -2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 5,
+    borderTopColor: '#E5E5E5',
+    paddingBottom: 16,
+    paddingTop: 6,
+    paddingHorizontal: 16,
+    zIndex: 50,
   },
-  navItem: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: spacing.large,
+  innerContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
-  navText: {
-    marginTop: spacing.small,
-    fontSize: fontSize.small,
-    color: colors.inactive,
+  button: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  navTextActive: {
-    color: colors.primary,
-    fontWeight: "600",
+  iconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'transparent',
+  },
+  iconContainerActive: {
+    backgroundColor: '#F3F4F6',
+  },
+  iconContainerActivePurple: {
+    backgroundColor: 'rgba(107, 78, 255, 0.1)',
   },
 });
