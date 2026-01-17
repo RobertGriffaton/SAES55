@@ -11,6 +11,11 @@ export const colors = {
   secondary: "#FF6B3C", // accent chaleureux (restos, food)
   card: "#FFFFFF",
   textMuted: "#9CA3AF",
+
+  // Couleurs Graye Design
+  grayePurple: "#6B4EFF",
+  grayeOrange: "#FF8C00",
+  grayeSurface: "#F5F5F7",
 };
 
 export const spacing = {
