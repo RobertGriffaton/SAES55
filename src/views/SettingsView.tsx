@@ -419,6 +419,9 @@ export const SettingsView = () => {
               source={AVATAR_IMAGES[activeProfile.avatar]}
               style={styles.avatarImage}
             />
+            <View style={styles.editAvatarBadge}>
+              <Ionicons name="camera" size={12} color="#fff" />
+            </View>
           </TouchableOpacity>
 
           <View style={styles.profileInfo}>
@@ -427,8 +430,10 @@ export const SettingsView = () => {
                 setEditingName(activeProfile.name);
                 setShowEditNameModal(true);
               }}
+              style={styles.profileNameContainer}
             >
               <Text style={styles.profileName}>{activeProfile.name}</Text>
+              <Ionicons name="pencil" size={14} color={colors.textMuted} />
             </TouchableOpacity>
             <Text style={styles.memberSince}>
               Membre depuis {formatMemberSince(activeProfile.createdAt)}
@@ -734,6 +739,24 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "700",
     color: colors.text,
+  },
+  profileNameContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  editAvatarBadge: {
+    position: "absolute",
+    bottom: -2,
+    right: -2,
+    backgroundColor: colors.grayePurple,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: "#fff",
   },
   memberSince: {
     fontSize: 12,
