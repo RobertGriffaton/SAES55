@@ -2,12 +2,14 @@ import { FontAwesome, Ionicons } from '@expo/vector-icons';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Animated,
   Dimensions,
   Image,
   PanResponder,
   RefreshControl,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -242,6 +244,42 @@ export default function FavoritesView({ onRestaurantSelect }: FavoritesViewProps
     setFavorites(prev => [...prev, { ...restaurant, validated: false }]);
   };
 
+  // Fonction de partage de la Graye List
+  const handleShareList = async () => {
+    try {
+      const listToShare = activeTab === 'toTest' ? favorites : validatedFavorites;
+      
+      if (listToShare.length === 0) {
+        Alert.alert('Liste vide', 'Ajoute des restaurants à ta Graye List pour pouvoir la partager !');
+        return;
+      }
+
+      const title = activeTab === 'toTest' ? 'À tester' : 'Déjà validé';
+      let message = `🍽️ Ma Graye List - ${title} (${listToShare.length})
+
+`;
+      
+      listToShare.forEach((restaurant, index) => {
+        const type = restaurant.type?.replace(/_/g, ' ') || restaurant.cuisines?.split(',')[0] || 'Restaurant';
+        const distance = restaurant.distanceKm ? ` - ${restaurant.distanceKm.toFixed(1)}km` : '';
+        const score = restaurant.score ? ` (${Math.round(restaurant.score)}%)` : '';
+        message += `${index + 1}. ${restaurant.name}${score}
+   ${type}${distance}
+
+`;
+      });
+
+      message += '\n📱 Partagé depuis Graye List';
+
+      await Share.share({
+        message: message,
+        title: 'Ma Graye List'
+      });
+    } catch (error) {
+      console.error('Erreur lors du partage:', error);
+    }
+  };
+
   // Fonction pour trouver l'image du restaurant
   const getImageSource = (restaurant: any) => {
     const candidates: string[] = [];
@@ -281,7 +319,18 @@ export default function FavoritesView({ onRestaurantSelect }: FavoritesViewProps
 
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.title}>Graye List</Text>
+        <View style={styles.titleRow}>
+          <Text style={styles.title}>Graye List ❤️</Text>
+          {(favorites.length > 0 || validatedFavorites.length > 0) && (
+            <TouchableOpacity 
+              style={styles.shareButton}
+              onPress={handleShareList}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="share-social" size={20} color="#6B4EFF" />
+            </TouchableOpacity>
+          )}
+        </View>
 
         <View style={styles.tabContainer}>
           <TouchableOpacity
@@ -397,6 +446,20 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     color: '#111827',
     marginBottom: 24,
+  },\r
+  titleRow: {\r
+    flexDirection: 'row',\r
+    justifyContent: 'space-between',\r
+    alignItems: 'center',\r
+    marginBottom: 24,\r
+  },\r
+  shareButton: {\r
+    width: 40,\r
+    height: 40,\r
+    borderRadius: 20,\r
+    backgroundColor: 'rgba(107, 78, 255, 0.1)',\r
+    alignItems: 'center',\r
+    justifyContent: 'center',\r
   },
   tabContainer: {
     backgroundColor: '#F5F5F7',
@@ -669,3 +732,4 @@ const styles = StyleSheet.create({
     color: '#6B4EFF',
   },
 });
+
