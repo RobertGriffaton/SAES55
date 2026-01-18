@@ -37,14 +37,42 @@ const AVATAR_IMAGES: Record<AvatarId, any> = {
   cupcake: require("../../assets/avatar_cupcake.png"),
 };
 
-// Cuisines pour la grille
+// Cuisines pour la grille (toutes les catégories)
 const CUISINES_GRID: { id: Cuisine; emoji: string; label: string }[] = [
   { id: "Amérique", emoji: "🍔", label: "Burger" },
   { id: "Japonais", emoji: "🍣", label: "Japonais" },
-  { id: "Afrique", emoji: "🥘", label: "Africain" },
-  { id: "Maghreb", emoji: "🌮", label: "Mexicain" },
+  { id: "Italien", emoji: "🍕", label: "Pizza" },
   { id: "Europe", emoji: "🥗", label: "Healthy" },
-  { id: "Italien", emoji: "🍕", label: "Italien" },
+  { id: "Maghreb", emoji: "🥙", label: "Kebab" },
+  { id: "Mexique", emoji: "🌮", label: "Tacos" },
+  // Page 2
+  { id: "Français", emoji: "🧀", label: "Français" },
+  { id: "Chinois", emoji: "🥡", label: "Chinois" },
+  { id: "Asiatique", emoji: "🍜", label: "Asiatique" },
+  { id: "Thai", emoji: "🍛", label: "Thaï" },
+  { id: "Vietnamien", emoji: "🍲", label: "Vietnamien" },
+  { id: "Coréen", emoji: "🍱", label: "Coréen" },
+  // Page 3
+  { id: "Afrique", emoji: "🥘", label: "Africain" },
+  { id: "Oriental", emoji: "🧆", label: "Oriental" },
+  { id: "Grec", emoji: "🥚", label: "Grec" },
+  { id: "Latino", emoji: "🌶️", label: "Latino" },
+  { id: "Poulet", emoji: "🍗", label: "Poulet" },
+  { id: "Sandwich", emoji: "🥪", label: "Sandwich" },
+  // Page 4
+  { id: "FastFood", emoji: "🌟", label: "Fast Food" },
+  { id: "Café", emoji: "☕", label: "Café" },
+  { id: "Pâtisserie", emoji: "🧁", label: "Pâtisserie" },
+  { id: "Crêperie", emoji: "🥞", label: "Crêperie" },
+  { id: "Grill", emoji: "🥩", label: "Grill" },
+  { id: "FruitsDeMer", emoji: "🦐", label: "Fruits de mer" },
+  // Page 5
+  { id: "Américain", emoji: "🍟", label: "Américain" },
+  { id: "Espagnol", emoji: "🥘", label: "Espagnol" },
+  { id: "Turc", emoji: "🧇", label: "Turc" },
+  { id: "Créole", emoji: "🌴", label: "Créole" },
+  { id: "Méditerranéen", emoji: "🌿", label: "Méditerranéen" },
+  { id: "BubbleTea", emoji: "🧋", label: "Bubble Tea" },
 ];
 
 // Contraintes alimentaires
@@ -217,39 +245,54 @@ export function OnboardingPreferencesView({ onDone }: { onDone: () => void }) {
       <Text style={styles.stepTitle}>Tes Cibles 🎯</Text>
       <Text style={styles.stepSubtitle}>Sélectionne tes cuisines préférées.</Text>
 
-      {/* Grille cuisines */}
+      {/* Grille cuisines avec pagination horizontale */}
       <ScrollView
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
         style={styles.cuisineScrollView}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.cuisineScrollContent}
+        contentContainerStyle={{ paddingRight: 0 }}
       >
-        <View style={styles.cuisineGrid}>
-          {CUISINES_GRID.map((cuisine) => {
-            const isSelected = selectedCuisines.includes(cuisine.id);
-            return (
-              <TouchableOpacity
-                key={cuisine.id}
-                style={[
-                  styles.cuisineCard,
-                  isSelected && styles.cuisineCardSelected,
-                ]}
-                onPress={() => toggleCuisine(cuisine.id)}
-              >
-                {isSelected && (
-                  <View style={styles.cuisineCheck}>
-                    <Ionicons name="checkmark" size={12} color={colors.grayePurple} />
-                  </View>
-                )}
-                <Text style={[styles.cuisineEmoji, !isSelected && styles.cuisineEmojiInactive]}>
-                  {cuisine.emoji}
-                </Text>
-                <Text style={[styles.cuisineLabel, isSelected && styles.cuisineLabelSelected]}>
-                  {cuisine.label}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
+        {Array.from({ length: Math.ceil(CUISINES_GRID.length / 6) }).map((_, pageIndex) => (
+          <View key={pageIndex} style={styles.cuisinePage}>
+            <View style={styles.cuisineGrid}>
+              {CUISINES_GRID.slice(pageIndex * 6, (pageIndex + 1) * 6).map((cuisine) => {
+                const isSelected = selectedCuisines.includes(cuisine.id);
+                return (
+                  <TouchableOpacity
+                    key={cuisine.id}
+                    style={[
+                      styles.cuisineCard,
+                      isSelected && styles.cuisineCardSelected,
+                    ]}
+                    onPress={() => toggleCuisine(cuisine.id)}
+                  >
+                    {isSelected && (
+                      <View style={styles.cuisineCheck}>
+                        <Ionicons name="checkmark" size={12} color={colors.grayePurple} />
+                      </View>
+                    )}
+                    <Text style={[styles.cuisineEmoji, !isSelected && styles.cuisineEmojiInactive]}>
+                      {cuisine.emoji}
+                    </Text>
+                    <Text style={[styles.cuisineLabel, isSelected && styles.cuisineLabelSelected]}>
+                      {cuisine.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            {/* Indicateur de page */}
+            <View style={styles.pageIndicator}>
+              {Array.from({ length: Math.ceil(CUISINES_GRID.length / 6) }).map((_, i) => (
+                <View
+                  key={i}
+                  style={[styles.pageDot, i === pageIndex && styles.pageDotActive]}
+                />
+              ))}
+            </View>
+          </View>
+        ))}
       </ScrollView>
 
       {/* FAB */}
@@ -707,6 +750,27 @@ const styles = StyleSheet.create({
   cuisineScrollContent: {
     paddingHorizontal: 16,
     paddingBottom: 100,
+  },
+  cuisinePage: {
+    width: SCREEN_WIDTH,
+    paddingHorizontal: 16,
+  },
+  pageIndicator: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 16,
+    gap: 8,
+  },
+  pageDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.grayeSurface,
+  },
+  pageDotActive: {
+    backgroundColor: colors.grayePurple,
+    width: 24,
   },
   cuisineGrid: {
     flexDirection: "row",
