@@ -9,6 +9,7 @@ import {
   Alert,
   Image,
   Modal,
+  Dimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing } from "../styles/theme";
@@ -41,14 +42,45 @@ const AVATAR_IMAGES: Record<AvatarId, any> = {
   cupcake: require("../../assets/avatar_cupcake.png"),
 };
 
-// Cuisines disponibles avec emojis
+// Dimensions pour la pagination
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
+
+// Cuisines disponibles avec emojis (toutes les catégories)
 const CUISINES_WITH_EMOJIS: { id: Cuisine; emoji: string; label: string }[] = [
-  { id: "Amérique", emoji: "🍔", label: "US" },
-  { id: "Maghreb", emoji: "🌮", label: "Mexicain" },
+  { id: "Amérique", emoji: "🍔", label: "Burger" },
   { id: "Japonais", emoji: "🍣", label: "Japonais" },
-  { id: "Italien", emoji: "🍝", label: "Italien" },
+  { id: "Italien", emoji: "🍕", label: "Pizza" },
+  { id: "Europe", emoji: "🥗", label: "Healthy" },
+  { id: "Maghreb", emoji: "🥙", label: "Kebab" },
+  { id: "Mexique", emoji: "🌮", label: "Tacos" },
+  // Page 2 
+  { id: "Français", emoji: "🧀", label: "Français" },
+  { id: "Chinois", emoji: "🥡", label: "Chinois" },
+  { id: "Asiatique", emoji: "🍜", label: "Asiatique" },
+  { id: "Thai", emoji: "🍛", label: "Thaï" },
+  { id: "Vietnamien", emoji: "🍲", label: "Vietnamien" },
+  { id: "Coréen", emoji: "🍱", label: "Coréen" },
+  // Page 3
   { id: "Afrique", emoji: "🥘", label: "Africain" },
-  { id: "Inde", emoji: "🍛", label: "Indien" },
+  { id: "Oriental", emoji: "🧆", label: "Oriental" },
+  { id: "Grec", emoji: "🥚", label: "Grec" },
+  { id: "Latino", emoji: "🌶️", label: "Latino" },
+  { id: "Poulet", emoji: "🍗", label: "Poulet" },
+  { id: "Sandwich", emoji: "🥪", label: "Sandwich" },
+  // Page 4
+  { id: "FastFood", emoji: "🌟", label: "Fast Food" },
+  { id: "Café", emoji: "☕", label: "Café" },
+  { id: "Pâtisserie", emoji: "🧁", label: "Pâtisserie" },
+  { id: "Crêperie", emoji: "🥞", label: "Crêperie" },
+  { id: "Grill", emoji: "🥩", label: "Grill" },
+  { id: "FruitsDeMer", emoji: "🦐", label: "Fruits de mer" },
+  // Page 5
+  { id: "Américain", emoji: "🍟", label: "Américain" },
+  { id: "Espagnol", emoji: "🥘", label: "Espagnol" },
+  { id: "Turc", emoji: "🧇", label: "Turc" },
+  { id: "Créole", emoji: "🌴", label: "Créole" },
+  { id: "Méditerranéen", emoji: "🌿", label: "Méditerranéen" },
+  { id: "BubbleTea", emoji: "🧋", label: "Bubble Tea" },
 ];
 
 // Régimes disponibles
@@ -540,35 +572,54 @@ export const SettingsView = () => {
             </Text>
             <Text style={styles.sectionCount}>{selectedCuisines.length} sélectionnées</Text>
           </View>
-          <View style={styles.cuisineGrid}>
-            {CUISINES_WITH_EMOJIS.map((cuisine) => (
-              <TouchableOpacity
-                key={cuisine.id}
-                style={[
-                  styles.cuisineBtn,
-                  selectedCuisines.includes(cuisine.id) && styles.cuisineBtnSelected,
-                ]}
-                onPress={() => toggleCuisine(cuisine.id)}
-              >
-                <Text
-                  style={[
-                    styles.cuisineEmoji,
-                    !selectedCuisines.includes(cuisine.id) && styles.cuisineEmojiInactive,
-                  ]}
-                >
-                  {cuisine.emoji}
-                </Text>
-                <Text
-                  style={[
-                    styles.cuisineLabel,
-                    selectedCuisines.includes(cuisine.id) && styles.cuisineLabelSelected,
-                  ]}
-                >
-                  {cuisine.label}
-                </Text>
-              </TouchableOpacity>
+          <ScrollView
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            style={styles.cuisineScrollView}
+          >
+            {Array.from({ length: Math.ceil(CUISINES_WITH_EMOJIS.length / 6) }).map((_, pageIndex) => (
+              <View key={pageIndex} style={styles.cuisinePage}>
+                <View style={styles.cuisineGrid}>
+                  {CUISINES_WITH_EMOJIS.slice(pageIndex * 6, (pageIndex + 1) * 6).map((cuisine) => (
+                    <TouchableOpacity
+                      key={cuisine.id}
+                      style={[
+                        styles.cuisineBtn,
+                        selectedCuisines.includes(cuisine.id) && styles.cuisineBtnSelected,
+                      ]}
+                      onPress={() => toggleCuisine(cuisine.id)}
+                    >
+                      <Text
+                        style={[
+                          styles.cuisineEmoji,
+                          !selectedCuisines.includes(cuisine.id) && styles.cuisineEmojiInactive,
+                        ]}
+                      >
+                        {cuisine.emoji}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.cuisineLabel,
+                          selectedCuisines.includes(cuisine.id) && styles.cuisineLabelSelected,
+                        ]}
+                      >
+                        {cuisine.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                <View style={styles.pageIndicator}>
+                  {Array.from({ length: Math.ceil(CUISINES_WITH_EMOJIS.length / 6) }).map((_, i) => (
+                    <View
+                      key={i}
+                      style={[styles.pageDot, i === pageIndex && styles.pageDotActive]}
+                    />
+                  ))}
+                </View>
+              </View>
             ))}
-          </View>
+          </ScrollView>
         </View>
 
         {/* Section Distance */}
@@ -954,6 +1005,30 @@ const styles = StyleSheet.create({
   },
 
   // Cuisines Grid
+  cuisineScrollView: {
+    marginBottom: 8,
+  },
+  cuisinePage: {
+    width: SCREEN_WIDTH - 48,
+    paddingHorizontal: 0,
+  },
+  pageIndicator: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 12,
+    gap: 6,
+  },
+  pageDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.grayeSurface,
+  },
+  pageDotActive: {
+    backgroundColor: colors.grayePurple,
+    width: 18,
+  },
   cuisineGrid: {
     flexDirection: "row",
     flexWrap: "wrap",

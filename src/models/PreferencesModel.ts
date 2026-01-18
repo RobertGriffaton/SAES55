@@ -9,7 +9,29 @@ export type Cuisine =
     | "Japonais"
     | "Chinois"
     | "Libanais"
-    | "Turc";
+    | "Turc"
+    | "Mexique"
+    | "Français"
+    | "Asiatique"
+    | "Thai"
+    | "Vietnamien"
+    | "Coréen"
+    | "Oriental"
+    | "Grec"
+    | "Latino"
+    | "Poulet"
+    | "Sandwich"
+    | "FastFood"
+    | "Café"
+    | "Pâtisserie"
+    | "Crêperie"
+    | "Grill"
+    | "FruitsDeMer"
+    | "Américain"
+    | "Espagnol"
+    | "Créole"
+    | "Méditerranéen"
+    | "BubbleTea";
 
 
 export type Diet = "Végétarien" | "Végan" | "Halal" | "Sans gluten" | "Aucune";
