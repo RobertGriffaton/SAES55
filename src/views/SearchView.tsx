@@ -11,6 +11,7 @@ import {
   ScrollView,
   Platform,
   useWindowDimensions,
+  Image,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing } from "../styles/theme";
@@ -21,6 +22,17 @@ import { getAdaptiveRecommendations } from "../services/RecommendationService";
 import { getAllRestaurants } from "../services/Database";
 import { RestaurantCard } from "../components/RestaurantCard";
 import * as Location from "expo-location";
+import { getActiveProfile } from "../controllers/ProfileController";
+import { AvatarId } from "../models/PreferencesModel";
+
+// Mapping des images avatars
+const AVATAR_IMAGES: Record<AvatarId, any> = {
+  burger: require("../../assets/avatar_burger.png"),
+  pizza: require("../../assets/avatar_pizza.png"),
+  sushi: require("../../assets/avatar_sushi.png"),
+  taco: require("../../assets/avatar_taco.png"),
+  cupcake: require("../../assets/avatar_cupcake.png"),
+};
 
 // --- 1. INTERFACE DE SAUVEGARDE ---
 export interface SearchSessionState {
@@ -65,16 +77,18 @@ export const SearchView = ({ onRestaurantSelect, savedState, onSaveState }: Sear
   const [selectedCategories, setSelectedCategories] = useState<string[]>(savedState?.selectedCategories || []);
   const [takeawayOnly, setTakeawayOnly] = useState(savedState?.takeawayOnly || false);
   const [onSiteOnly, setOnSiteOnly] = useState(savedState?.onSiteOnly || false);
-  
+
   // États de localisation restaurés
   const [useLocationFilter, setUseLocationFilter] = useState(savedState?.useLocationFilter || false);
   const [userLocation, setUserLocation] = useState<{ lat: number; lon: number } | null>(savedState?.userLocation || null);
   const [locationName, setLocationName] = useState<string | null>(savedState?.locationName || null);
   const [radiusKm, setRadiusKm] = useState<number>(savedState?.radiusKm || 5);
-  
+
   const [locationError, setLocationError] = useState<string | null>(null);
   const [requestingLocation, setRequestingLocation] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
+  const [profileAvatar, setProfileAvatar] = useState<AvatarId | null>(null);
+  const [profileName, setProfileName] = useState<string | null>(null);
 
   // --- 4. EFFET DE SAUVEGARDE AUTOMATIQUE ---
   useEffect(() => {
@@ -99,6 +113,14 @@ export const SearchView = ({ onRestaurantSelect, savedState, onSaveState }: Sear
     if (allRestaurants.length === 0) {
       loadData();
     }
+    // Charger l'avatar du profil actif
+    (async () => {
+      const profile = await getActiveProfile();
+      if (profile) {
+        setProfileAvatar(profile.avatar);
+        setProfileName(profile.name);
+      }
+    })();
   }, []);
 
   // Fonction de chargement qui accepte des coordonnées pour recalculer le score
@@ -272,7 +294,7 @@ export const SearchView = ({ onRestaurantSelect, savedState, onSaveState }: Sear
 
       if (Platform.OS === "web") {
         if (!navigator.geolocation) throw new Error("Géolocalisation non supportée.");
-        
+
         const getWebPosition = (options: PositionOptions): Promise<GeolocationPosition> => {
           return new Promise((resolve, reject) => {
             navigator.geolocation.getCurrentPosition(resolve, reject, options);
@@ -292,7 +314,7 @@ export const SearchView = ({ onRestaurantSelect, savedState, onSaveState }: Sear
       } else {
         const { status } = await Location.requestForegroundPermissionsAsync();
         if (status !== "granted") throw new Error("Permission refusée sur mobile");
-        
+
         const loc = await Location.getCurrentPositionAsync({});
         lat = loc.coords.latitude;
         lon = loc.coords.longitude;
@@ -397,8 +419,17 @@ export const SearchView = ({ onRestaurantSelect, savedState, onSaveState }: Sear
               )}
             </View>
           </TouchableOpacity>
-          <View style={styles.profilePic}>
-            <Ionicons name="person" size={24} color="#9CA3AF" style={{ alignSelf: "center", marginTop: 6 }} />
+          <View style={styles.profileSection}>
+            {profileName && (
+              <Text style={styles.profileName}>{profileName}</Text>
+            )}
+            <View style={styles.profilePic}>
+              {profileAvatar ? (
+                <Image source={AVATAR_IMAGES[profileAvatar]} style={styles.profileAvatar} />
+              ) : (
+                <Ionicons name="person" size={24} color="#9CA3AF" style={{ alignSelf: "center", marginTop: 6 }} />
+              )}
+            </View>
           </View>
         </View>
 
@@ -506,12 +537,12 @@ export const SearchView = ({ onRestaurantSelect, savedState, onSaveState }: Sear
       {/* Titre de Section (adaptatif) */}
       <View style={styles.sectionHeader}>
         {(!isSearching && searchText.length < 3) ? (
-           <>
-             <Text style={styles.sectionTitle}>Nos recommandations</Text>
-             <Text style={styles.sectionLink}>Voir tout</Text>
-           </>
+          <>
+            <Text style={styles.sectionTitle}>Nos recommandations</Text>
+            <Text style={styles.sectionLink}>Voir tout</Text>
+          </>
         ) : (
-           <Text style={styles.sectionTitle}>Résultats pour "{searchText}"</Text>
+          <Text style={styles.sectionTitle}>Résultats pour "{searchText}"</Text>
         )}
       </View>
     </View>
@@ -595,12 +626,27 @@ const styles = StyleSheet.create({
     color: colors.primary || "#6B4EFF",
     fontWeight: "700",
   },
+  profileSection: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  profileName: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: colors.text,
+  },
   profilePic: {
     width: 40,
     height: 40,
     borderRadius: 20,
     borderWidth: 2,
     borderColor: "#FF8C00",
+    overflow: "hidden",
+  },
+  profileAvatar: {
+    width: "100%",
+    height: "100%",
   },
 
   // Titre
@@ -752,7 +798,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     marginTop: spacing.medium,
-    marginBottom: spacing.large,
+    marginBottom: 35,
     gap: 20,
   },
   pageButton: {
