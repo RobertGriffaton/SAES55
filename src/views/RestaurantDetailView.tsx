@@ -20,6 +20,13 @@ import { getActiveProfile } from "../controllers/ProfileController";
 const CATEGORY_IMAGES: Record<string, any> = {
   // MARQUES
   "mcdonald's": require("../../assets/imagescover/mcdo.png"),
+  "mcdo": require("../../assets/imagescover/mcdo.png"),
+  "quick": require("../../assets/imagescover/quick.png"),
+  "kfc": require("../../assets/imagescover/kfc.png"),
+  "burger_king": require("../../assets/imagescover/burgerking.png"),
+  "burgerking": require("../../assets/imagescover/burgerking.png"),
+  "starbucks": require("../../assets/imagescover/starbucks.png"),
+  "subway": require("../../assets/imagescover/subway.png"),
 
   // TYPES
   "francais": require("../../assets/imagescover/francais.png"),
@@ -227,15 +234,12 @@ export const RestaurantDetailView = ({ restaurant, onBack }: RestaurantDetailPro
               </View>
             </View>
 
-            {/* Info Row: Rating, Price, Type */}
             <View style={styles.infoRow}>
               <View style={styles.ratingBox}>
                 <Ionicons name="star" size={14} color="#FBBF24" />
                 <Text style={styles.ratingText}>4.8</Text>
                 <Text style={styles.reviewCount}>(124 avis)</Text>
               </View>
-              <View style={styles.dot} />
-              <Text style={styles.priceRange}>€€</Text>
               <View style={styles.dot} />
               <Text style={styles.cuisineType}>{displayCuisines}</Text>
             </View>
