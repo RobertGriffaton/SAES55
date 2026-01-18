@@ -1,65 +1,20 @@
+import { Ionicons } from "@expo/vector-icons";
 import React, { useEffect, useMemo, useState } from "react";
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Linking,
-  Image,
-  useWindowDimensions,
-  Platform,
-  Animated
+    Image,
+    Linking,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    useWindowDimensions,
+    View
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
-import { colors, spacing } from "../styles/theme";
-import { logInteraction, addFavorite, removeFavorite, isFavorite as checkIsFavorite } from "../services/Database";
 import { getActiveProfile } from "../controllers/ProfileController";
+import { addFavorite, isFavorite as checkIsFavorite, logInteraction, removeFavorite } from "../services/Database";
 
-// --- MAPPING DES IMAGES ---
-const CATEGORY_IMAGES: Record<string, any> = {
-  // MARQUES
-  "mcdonald's": require("../../assets/imagescover/mcdo.png"),
-
-  // TYPES
-  "francais": require("../../assets/imagescover/francais.png"),
-  "pizza": require("../../assets/imagescover/pizza.png"),
-  "japonais": require("../../assets/imagescover/japonais.png"),
-  "italien": require("../../assets/imagescover/italien.png"),
-  "burger": require("../../assets/imagescover/burger.png"),
-  "asiatique": require("../../assets/imagescover/asiatique.png"),
-  "kebab": require("../../assets/imagescover/kebab.png"),
-  "chinois": require("../../assets/imagescover/chinois.png"),
-  "sandwich": require("../../assets/imagescover/sandwich.png"),
-  "cafe": require("../../assets/imagescover/cafe.png"),
-  "asie_du_sud": require("../../assets/imagescover/asie_du_sud.png"),
-  "creperie": require("../../assets/imagescover/creperie.png"),
-  "thai": require("../../assets/imagescover/thai.png"),
-  "poulet": require("../../assets/imagescover/poulet.png"),
-  "vietnamien": require("../../assets/imagescover/vietnamien.png"),
-  "middle_eastern": require("../../assets/imagescover/middle_eastern.png"),
-  "oriental": require("../../assets/imagescover/oriental.png"),
-  "healthy": require("../../assets/imagescover/healthy.png"),
-  "latino": require("../../assets/imagescover/latino.png"),
-  "coreen": require("../../assets/imagescover/coreen.png"),
-  "turkish": require("../../assets/imagescover/turkish.png"),
-  "grill": require("../../assets/imagescover/grill.png"),
-  "patisserie": require("../../assets/imagescover/patisserie.png"),
-  "europeen": require("../../assets/imagescover/europeen.png"),
-  "fast_food": require("../../assets/imagescover/fast_food.png"),
-  "africain": require("../../assets/imagescover/africain.png"),
-  "bubble_tea": require("../../assets/imagescover/bubble_tea.png"),
-  "fruits_de_mer": require("../../assets/imagescover/fruits_de_mer.png"),
-  "americain": require("../../assets/imagescover/americain.png"),
-  "divers": require("../../assets/imagescover/divers.png"),
-  "mediterranean": require("../../assets/imagescover/mediterranean.png"),
-  "grec": require("../../assets/imagescover/grec.png"),
-  "espagnol": require("../../assets/imagescover/espagnol.png"),
-  "tacos": require("../../assets/imagescover/tacos.png"),
-  "creole": require("../../assets/imagescover/creole.png"),
-  "balkans": require("../../assets/imagescover/balkans.png"),
-  "bar": require("../../assets/imagescover/bar.png"),
-};
+import { getRestaurantImage } from "../utils/ImageMapping";
 
 interface RestaurantDetailProps {
   restaurant: any;
@@ -90,34 +45,8 @@ export const RestaurantDetailView = ({ restaurant, onBack }: RestaurantDetailPro
   }, [restaurant]);
 
   // --- LOGIQUE IMAGE ---
-  const imageSource = useMemo(() => {
-    if (!restaurant) return null;
-    let candidates: string[] = [];
-
-    // 1. BRAND (JSON field: "brand": "McDonald's")
-    if (restaurant.brand) candidates.push(String(restaurant.brand));
-    // 2. NAME
-    if (restaurant.name) candidates.push(String(restaurant.name));
-
-    // 3. CUISINES (Gestion array ou string)
-    const cuisinesData = restaurant.cuisines || restaurant.cuisine;
-    if (cuisinesData) {
-      const cuisineString = Array.isArray(cuisinesData) ? cuisinesData.join(",") : String(cuisinesData);
-      candidates = [...candidates, ...cuisineString.split(",")];
-    }
-
-    // 4. TYPE
-    if (restaurant.type) candidates.push(String(restaurant.type));
-
-    for (const rawKey of candidates) {
-      const cleanKey = rawKey.trim().toLowerCase().replace(/ /g, "_").replace(/-/g, "_");
-      if (CATEGORY_IMAGES[cleanKey]) return CATEGORY_IMAGES[cleanKey];
-
-      const noApostrophe = cleanKey.replace(/'/g, "");
-      if (CATEGORY_IMAGES[noApostrophe]) return CATEGORY_IMAGES[noApostrophe];
-    }
-    return null;
-  }, [restaurant]);
+  // --- LOGIQUE IMAGE ---
+  const imageSource = useMemo(() => getRestaurantImage(restaurant), [restaurant]);
 
   // Formatage affichage cuisines
   const displayCuisines = (restaurant.cuisines || restaurant.cuisine)
@@ -298,17 +227,19 @@ export const RestaurantDetailView = ({ restaurant, onBack }: RestaurantDetailPro
 
             {/* Info Cards Grid */}
             <View style={styles.infoGrid}>
-              <View style={styles.infoCard}>
-                <View style={styles.infoCardIcon}>
-                  <Ionicons name="time" size={14} color="#6B4EFF" />
+              {restaurant.opening_hours ? (
+                <View style={styles.infoCard}>
+                  <View style={styles.infoCardIcon}>
+                    <Ionicons name="time" size={14} color="#6B4EFF" />
+                  </View>
+                  <View>
+                    <Text style={styles.infoCardLabel}>HORAIRES</Text>
+                    <Text style={styles.infoCardValue}>
+                      {restaurant.opening_hours.split(';')[0]}
+                    </Text>
+                  </View>
                 </View>
-                <View>
-                  <Text style={styles.infoCardLabel}>HORAIRES</Text>
-                  <Text style={styles.infoCardValue}>
-                    {restaurant.opening_hours ? restaurant.opening_hours.split(';')[0] : "Voir horaires"}
-                  </Text>
-                </View>
-              </View>
+              ) : null}
 
               <View style={styles.infoCard}>
                 <View style={styles.infoCardIcon}>
@@ -317,12 +248,8 @@ export const RestaurantDetailView = ({ restaurant, onBack }: RestaurantDetailPro
                 <View>
                   <Text style={styles.infoCardLabel}>LOCALISATION</Text>
                   <Text style={styles.infoCardValue} numberOfLines={1}>
-                    {formattedDistance
-                      ? formattedDistance
-                      : restaurant.meta_name_com
-                        ? restaurant.meta_name_com
-                        : "Voir sur la carte"
-                    }
+                    {restaurant.city || restaurant.meta_name_com || "Voir sur la carte"}
+                    {formattedDistance ? ` • ${formattedDistance}` : ''}
                   </Text>
                 </View>
               </View>

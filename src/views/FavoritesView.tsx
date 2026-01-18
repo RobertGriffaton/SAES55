@@ -18,29 +18,10 @@ import {
 import { captureRef } from 'react-native-view-shot';
 import { getActiveProfile } from '../controllers/ProfileController';
 import { getFavorites, removeFavorite, unvalidateFavorite, validateFavorite } from '../services/Database';
+import { getRestaurantImage } from '../utils/ImageMapping';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const SWIPE_THRESHOLD = -50; // Seuil pour valider le swipe gauche (réduit pour iOS)
-
-// Mapping des images (copié depuis RestaurantDetailView)
-const CATEGORY_IMAGES: Record<string, any> = {
-  "mcdonald's": require("../../assets/imagescover/mcdo.png"),
-  "francais": require("../../assets/imagescover/francais.png"),
-  "pizza": require("../../assets/imagescover/pizza.png"),
-  "japonais": require("../../assets/imagescover/japonais.png"),
-  "italien": require("../../assets/imagescover/italien.png"),
-  "burger": require("../../assets/imagescover/burger.png"),
-  "asiatique": require("../../assets/imagescover/asiatique.png"),
-  "kebab": require("../../assets/imagescover/kebab.png"),
-  "chinois": require("../../assets/imagescover/chinois.png"),
-  "sandwich": require("../../assets/imagescover/sandwich.png"),
-  "cafe": require("../../assets/imagescover/cafe.png"),
-  "thai": require("../../assets/imagescover/thai.png"),
-  "poulet": require("../../assets/imagescover/poulet.png"),
-  "fast_food": require("../../assets/imagescover/fast_food.png"),
-  "healthy": require("../../assets/imagescover/healthy.png"),
-  "tacos": require("../../assets/imagescover/tacos.png"),
-};
 
 interface FavoritesViewProps {
   onRestaurantSelect?: (restaurant: any) => void;
@@ -52,10 +33,10 @@ const SwipeableCard = ({
   onSwipeComplete,
   onRemove,
   onPress,
-  getImageSource,
   formatInfo,
   isValidated
 }: any) => {
+  const imageSource = getRestaurantImage(restaurant);
   const translateX = useRef(new Animated.Value(0)).current;
   const opacity = useRef(new Animated.Value(1)).current;
 
@@ -123,9 +104,9 @@ const SwipeableCard = ({
           activeOpacity={0.9}
         >
           <View style={styles.imageContainer}>
-            {getImageSource(restaurant) ? (
+            {imageSource ? (
               <Image
-                source={getImageSource(restaurant)}
+                source={imageSource}
                 style={styles.image}
                 resizeMode="cover"
               />
@@ -272,22 +253,7 @@ export default function FavoritesView({ onRestaurantSelect }: FavoritesViewProps
     setFavorites(prev => [...prev, { ...restaurant, validated: false }]);
   };
 
-  // Fonction pour trouver l'image du restaurant
-  const getImageSource = (restaurant: any) => {
-    const candidates: string[] = [];
-    if (restaurant.brand) candidates.push(String(restaurant.brand));
-    if (restaurant.name) candidates.push(String(restaurant.name));
-    if (restaurant.cuisines) {
-      candidates.push(...String(restaurant.cuisines).split(","));
-    }
-    if (restaurant.type) candidates.push(String(restaurant.type));
 
-    for (const rawKey of candidates) {
-      const cleanKey = rawKey.trim().toLowerCase().replace(/ /g, "_").replace(/-/g, "_");
-      if (CATEGORY_IMAGES[cleanKey]) return CATEGORY_IMAGES[cleanKey];
-    }
-    return null;
-  };
 
   // Formater les infos du restaurant (Cuisine > Type • Ville • Distance)
   const formatInfo = (restaurant: any) => {
@@ -402,7 +368,6 @@ export default function FavoritesView({ onRestaurantSelect }: FavoritesViewProps
                 onSwipeComplete={activeTab === 'toTest' ? handleSwipeToValidate : handleSwipeToUnvalidate}
                 onRemove={handleRemoveFavorite}
                 onPress={(r: any) => onRestaurantSelect && onRestaurantSelect(r)}
-                getImageSource={getImageSource}
                 formatInfo={formatInfo}
                 isValidated={activeTab === 'validated'}
               />
@@ -439,8 +404,8 @@ export default function FavoritesView({ onRestaurantSelect }: FavoritesViewProps
             {[...favorites, ...validatedFavorites].slice(0, 8).map((restaurant, index) => (
               <View key={`share-${restaurant.id || index}`} style={styles.shareItem}>
                 <View style={styles.shareImageContainer}>
-                   {getImageSource(restaurant) ? (
-                    <Image source={getImageSource(restaurant)} style={styles.shareImage} resizeMode="cover" />
+                   {getRestaurantImage(restaurant) ? (
+                    <Image source={getRestaurantImage(restaurant) as any} style={styles.shareImage} resizeMode="cover" />
                   ) : (
                     <View style={[styles.shareImage, { backgroundColor: '#ddd' }]} />
                   )}
