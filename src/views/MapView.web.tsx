@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { View, Text, StyleSheet, ActivityIndicator, Platform } from "react-native";
+import { View, Text, StyleSheet, ActivityIndicator, Platform, TouchableOpacity } from "react-native";
 import { colors } from "../styles/theme";
 import { getAllRestaurants, getRestaurantsNearby } from "../services/Database";
-import 'leaflet/dist/leaflet.css'; // Indispensable pour que la carte s'affiche bien
+import 'leaflet/dist/leaflet.css';
 
 // Variables pour les modules chargés dynamiquement
 let MapContainer: any, TileLayer: any, Marker: any, Popup: any, L: any;
@@ -14,10 +14,8 @@ interface MapViewProps {
 export const MapView = ({ onRestaurantSelect }: MapViewProps) => {
   const [libLoaded, setLibLoaded] = useState(false);
   const [restaurants, setRestaurants] = useState<any[]>([]);
-  // Position par défaut (Paris) en attendant la géolocalisation
   const [position, setPosition] = useState<[number, number] | null>(null);
   const [userPosition, setUserPosition] = useState<[number, number] | null>(null);
-  const [icon, setIcon] = useState<any>(null);
   const [radiusKm, setRadiusKm] = useState<number>(5);
   const [loadingNearby, setLoadingNearby] = useState(false);
   const [searchText, setSearchText] = useState("");
@@ -25,29 +23,18 @@ export const MapView = ({ onRestaurantSelect }: MapViewProps) => {
   const [showSuggestions, setShowSuggestions] = useState(false);
 
   useEffect(() => {
-    // 1. Chargement dynamique de Leaflet (pour éviter les erreurs de compilation "window is undefined")
     const loadLeaflet = async () => {
       if (Platform.OS === 'web') {
         try {
           const ReactLeaflet = require('react-leaflet');
           const Leaflet = require('leaflet');
-          
+
           MapContainer = ReactLeaflet.MapContainer;
           TileLayer = ReactLeaflet.TileLayer;
           Marker = ReactLeaflet.Marker;
           Popup = ReactLeaflet.Popup;
           L = Leaflet;
 
-          // Correction des icônes par défaut de Leaflet qui sont souvent brisées en React
-          const myIcon = L.icon({
-            iconUrl: "https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png",
-            iconRetinaUrl: "https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon-2x.png",
-            shadowUrl: "https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png",
-            iconSize: [25, 41],
-            iconAnchor: [12, 41],
-            popupAnchor: [1, -34],
-          });
-          setIcon(myIcon);
           setLibLoaded(true);
         } catch (e) {
           console.error("Erreur chargement Leaflet:", e);
@@ -56,21 +43,18 @@ export const MapView = ({ onRestaurantSelect }: MapViewProps) => {
     };
     loadLeaflet();
 
-    // 2. Géolocalisation du navigateur
     if (typeof navigator !== 'undefined') {
-        navigator.geolocation.getCurrentPosition(
-            (pos) => {
-                const { latitude, longitude } = pos.coords;
-                setUserPosition([latitude, longitude]);
-                setPosition([latitude, longitude]);
-            },
-            (err) => {
-                console.warn("Erreur GPS Web:", err);
-                // Fallback sur Paris si refus ou erreur
-                setUserPosition([48.8566, 2.3522]);
-                setPosition([48.8566, 2.3522]);
-            }
-        );
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const { latitude, longitude } = pos.coords;
+          setUserPosition([latitude, longitude]);
+          setPosition([latitude, longitude]);
+        },
+        () => {
+          setUserPosition([48.8566, 2.3522]);
+          setPosition([48.8566, 2.3522]);
+        }
+      );
     }
   }, []);
 
@@ -96,9 +80,7 @@ export const MapView = ({ onRestaurantSelect }: MapViewProps) => {
           lon: item.lonSum / item.count,
         }));
         setCitiesIndex(aggregated);
-      } catch (e) {
-        console.error("Erreur construction index villes:", e);
-      }
+      } catch (e) { }
     };
     buildCityIndex();
   }, []);
@@ -111,22 +93,31 @@ export const MapView = ({ onRestaurantSelect }: MapViewProps) => {
         setLoadingNearby(true);
         const data = await getRestaurantsNearby(position[0], position[1], radiusKm);
         if (isMounted) setRestaurants(data);
-      } catch (e) {
-        console.error("Erreur chargement restos autour:", e);
-      } finally {
+      } catch (e) { } finally {
         if (isMounted) setLoadingNearby(false);
       }
     };
     fetchNearby();
-    return () => {
-      isMounted = false;
-    };
+    return () => { isMounted = false; };
   }, [position, radiusKm]);
 
-  const changeRadius = (delta: number) => {
-    setRadiusKm((prev) => {
-      const next = Math.max(1, Math.min(30, prev + delta));
-      return next;
+  // Helper pour créer les icônes rondes colorées
+  const getCircleIcon = (color: string, iconMarkup?: string, size: number = 32) => {
+    const half = size / 2;
+    return L.divIcon({
+      className: 'custom-div-icon',
+      html: `<div style="
+        width: ${size}px; height: ${size}px;
+        background: ${color};
+        border-radius: 50%;
+        border: ${size > 32 ? '4px' : '3px'} solid white;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        display: flex; align-items: center; justify-content: center;
+        color: white; font-size: ${size / 2}px;
+      ">${iconMarkup || '<div style="width: 8px; height: 8px; background: white; border-radius: 50%;"></div>'}</div>`,
+      iconSize: [size, size],
+      iconAnchor: [half, half],
+      popupAnchor: [0, -half]
     });
   };
 
@@ -138,150 +129,119 @@ export const MapView = ({ onRestaurantSelect }: MapViewProps) => {
       .slice(0, 5);
   }, [searchText, citiesIndex]);
 
-  const handleCitySelect = (city: { label: string; lat: number; lon: number }) => {
-    setSearchText(city.label);
-    setPosition([city.lat, city.lon]);
-    setShowSuggestions(false);
-  };
-
-  const resetToUserPosition = () => {
-    if (userPosition) {
-      setPosition(userPosition);
-      setSearchText("");
-    }
-  };
-
-  if (!libLoaded || !position || !icon) {
+  if (!libLoaded || !position) {
     return (
-        <View style={styles.center}>
-            <ActivityIndicator size="large" color={colors.primary} />
-            <Text style={{marginTop: 10, color: colors.inactive}}>Chargement de la carte...</Text>
-        </View>
+      <View style={styles.center}>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={{ marginTop: 10, color: colors.inactive }}>Chargement de la carte...</Text>
+      </View>
     );
   }
 
   return (
     <View style={styles.container}>
-      {/* Conteneur HTML standard pour la carte */}
       <div style={{ height: '100vh', width: '100%', zIndex: 0 }}>
-        <MapContainer center={position} zoom={13} style={{ height: '100%', width: '100%' }}>
-          
-          {/* C'EST ICI QU'ON CHANGE POUR CARTODB (Comme sur mobile) */}
+        <MapContainer
+          center={position}
+          zoom={13}
+          style={{ height: '100%', width: '100%' }}
+          zoomControl={false}
+        >
           <TileLayer
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
-            url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png"
+            attribution='&copy; CARTO'
+            url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png"
           />
-          
-          {/* Marqueur "Vous êtes ici" */}
-          <Marker position={position} icon={icon}>
-            <Popup>📍 Vous êtes ici</Popup>
+
+          <Marker
+            position={position}
+            icon={getCircleIcon('#FF8C00', '📍', 48)}
+          >
+            <Popup>Vous recherchez ici</Popup>
           </Marker>
 
-          {/* Marqueurs Restaurants */}
-          {restaurants.map((resto) => (
-             <Marker 
-                key={resto.id} 
+          {restaurants.map((resto) => {
+            const cuisine = (resto.cuisines || resto.type || '').toLowerCase();
+            let color = '#6B4EFF';
+            let emoji = '';
+
+            if (cuisine.includes('burger') || cuisine.includes('fast')) { color = '#FF6B6B'; emoji = '🍔'; }
+            else if (cuisine.includes('pizza')) { color = '#FFA500'; emoji = '🍕'; }
+            else if (cuisine.includes('sushi') || cuisine.includes('japonais')) { color = '#FF69B4'; emoji = '🍱'; }
+            else if (cuisine.includes('kebab')) { color = '#8B4513'; emoji = '🥙'; }
+            else if (cuisine.includes('cafe')) { color = '#8B4513'; emoji = '☕'; }
+
+            return (
+              <Marker
+                key={resto.id}
                 position={[resto.lat, resto.lon]}
-                icon={icon}
+                icon={getCircleIcon(color, emoji)}
                 eventHandlers={{
-                    click: () => onRestaurantSelect && onRestaurantSelect(resto),
+                  click: () => onRestaurantSelect && onRestaurantSelect(resto),
                 }}
-             >
+              >
                 <Popup>
-                    <div style={{ textAlign: 'center' }}>
-                        <strong>{resto.name}</strong><br/>
-                        <span style={{ fontSize: '0.9em', color: '#666' }}>{resto.cuisines || resto.type}</span>
-                        <br/>
-                        <a href="#" style={{ color: colors.primary, textDecoration: 'none', fontWeight: 'bold' }}>
-                            ℹ️ Voir détails
-                        </a>
-                    </div>
+                  <div style={{ textAlign: 'center', minWidth: '150px' }}>
+                    <strong style={{ fontSize: '16px' }}>{resto.name}</strong><br />
+                    <span style={{ fontSize: '13px', color: '#666' }}>{resto.cuisines || resto.type}</span>
+                    <br />
+                    <button
+                      onClick={() => onRestaurantSelect && onRestaurantSelect(resto)}
+                      style={{
+                        marginTop: '10px', padding: '6px 12px', background: colors.primary,
+                        color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer',
+                        fontWeight: '600', fontSize: '12px'
+                      }}
+                    >
+                      Détails
+                    </button>
+                  </div>
                 </Popup>
-             </Marker>
-          ))}
+              </Marker>
+            );
+          })}
         </MapContainer>
       </div>
 
-      {/* Recherche hors-ligne par ville/commune */}
-      <div style={webStyles.searchBox}>
-        <div style={webStyles.searchRow}>
-          <input
-            style={webStyles.searchInput}
-            value={searchText}
-            onChange={(e: any) => {
-              setSearchText(e.target.value);
-              setShowSuggestions(true);
-            }}
-            placeholder="Ville, commune..."
-          />
-          <button
-            style={webStyles.positionButton}
-            onClick={resetToUserPosition}
-            title="Revenir à ma position"
-            disabled={!userPosition}
-          >
-            📍
-          </button>
-        </div>
-        <button
-          style={{ ...webStyles.searchButton, opacity: citySuggestions.length ? 1 : 0.6 }}
-          onClick={() => {
-            setShowSuggestions(false);
-            citySuggestions[0] && handleCitySelect(citySuggestions[0]);
-          }}
-          disabled={!citySuggestions.length}
-        >
-          Aller
-        </button>
-        {showSuggestions && citySuggestions.length > 0 && (
-          <div style={webStyles.suggestions}>
-            {citySuggestions.map((c) => (
-              <div
-                key={`${c.label}-${c.lat}-${c.lon}`}
-                style={webStyles.suggestionItem}
-                onClick={() => handleCitySelect(c)}
-              >
-                {c.label}
-              </div>
-            ))}
+      {/* Floating UI elements with modern look */}
+      <div style={webStyles.uiWrapper}>
+        <div style={webStyles.searchBar}>
+          <div style={webStyles.inputRow}>
+            <span style={{ marginRight: '10px' }}>🔍</span>
+            <input
+              style={webStyles.input}
+              value={searchText}
+              onChange={(e: any) => { setSearchText(e.target.value); setShowSuggestions(true); }}
+              placeholder="Rechercher une ville..."
+            />
+            {userPosition && (
+              <button style={webStyles.gpsBtn} onClick={() => setPosition(userPosition)}>📍</button>
+            )}
           </div>
-        )}
-        {showSuggestions && searchText.trim().length >= 2 && citySuggestions.length === 0 && (
-          <div style={webStyles.noResult}>Pas trouvé dans les données hors ligne.</div>
-        )}
+          {showSuggestions && citySuggestions.length > 0 && (
+            <div style={webStyles.suggestions}>
+              {citySuggestions.map((c) => (
+                <div key={c.label} style={webStyles.suggestionItem} onClick={() => {
+                  setSearchText(c.label); setPosition([c.lat, c.lon]); setShowSuggestions(false);
+                }}>{c.label}</div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div style={webStyles.badges}>
+          <div style={webStyles.badgeOuvert}>Ouvert (48)</div>
+          <div style={webStyles.badgeRadius}>≤ {radiusKm} km</div>
+        </div>
       </div>
 
-      {/* Contrôle du rayon */}
-      <div style={webStyles.radiusControl}>
-        <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 6 }}>
-          Rayon : {radiusKm} km
+      <div style={webStyles.bottomRightControls}>
+        <div style={webStyles.radiusCard}>
+          <div style={webStyles.radiusButtons}>
+            <button style={webStyles.circBtn} onClick={() => setRadiusKm(r => Math.max(1, r - 1))}>+</button>
+            <button style={webStyles.circBtn} onClick={() => setRadiusKm(r => Math.min(50, r + 1))}>-</button>
+          </div>
         </div>
-        <div style={webStyles.radiusButtons}>
-          <button
-            style={{ ...webStyles.radiusButton, opacity: radiusKm <= 1 ? 0.6 : 1 }}
-            onClick={() => changeRadius(-1)}
-            disabled={radiusKm <= 1}
-          >
-            -
-          </button>
-          <button
-            style={{ ...webStyles.radiusButton, opacity: radiusKm >= 30 ? 0.6 : 1 }}
-            onClick={() => changeRadius(1)}
-            disabled={radiusKm >= 30}
-          >
-            +
-          </button>
-        </div>
-        {loadingNearby ? (
-          <div style={webStyles.radiusHint}>Mise à jour des restaurants...</div>
-        ) : (
-          <div style={webStyles.radiusHint}>Ajuste le rayon pour voir plus ou moins de restos.</div>
-        )}
-      </div>
-
-      {/* Légende flottante */}
-      <div style={webStyles.legend}>
-        {restaurants.length} restaurants trouvés
+        <div style={webStyles.legend}>{restaurants.length} trouvés</div>
       </div>
     </View>
   );
@@ -292,117 +252,45 @@ const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' }
 });
 
-// Styles CSS spécifiques au Web (pour la légende flottante)
 const webStyles = {
-    legend: {
-        position: 'absolute' as 'absolute',
-        bottom: '30px',
-        left: '50%',
-        transform: 'translateX(-50%)',
-        backgroundColor: 'white',
-        padding: '8px 16px',
-        borderRadius: '20px',
-        boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
-        zIndex: 1000,
-        fontWeight: 'bold',
-        fontSize: '14px',
-        fontFamily: 'system-ui, -apple-system, sans-serif'
-    },
-    searchBox: {
-        position: 'absolute' as 'absolute',
-        top: '20px',
-        left: '80px',
-        backgroundColor: 'white',
-        padding: '12px',
-        borderRadius: '12px',
-        boxShadow: '0 2px 6px rgba(0,0,0,0.25)',
-        zIndex: 1000,
-        width: '260px',
-        display: 'flex',
-        flexDirection: 'column' as 'column',
-        gap: '6px',
-        fontFamily: 'system-ui, -apple-system, sans-serif'
-    },
-    searchRow: {
-        display: 'flex',
-        flexDirection: 'row' as 'row',
-        alignItems: 'center',
-        gap: '6px'
-    },
-    searchInput: {
-        flex: 1,
-        padding: '10px',
-        borderRadius: '10px',
-        border: '1px solid #e0e0e0',
-        fontSize: '14px'
-    },
-    positionButton: {
-        width: '40px',
-        height: '40px',
-        borderRadius: '12px',
-        border: '1px solid #e0e0e0',
-        backgroundColor: '#fff',
-        cursor: 'pointer' as 'pointer',
-        fontSize: '18px',
-        lineHeight: 1
-    },
-    searchButton: {
-        width: '100%',
-        padding: '10px 0',
-        borderRadius: '10px',
-        border: '1px solid #e0e0e0',
-        backgroundColor: colors.primary || '#007AFF',
-        color: '#fff',
-        fontWeight: 700,
-        cursor: 'pointer' as 'pointer',
-        fontSize: '14px'
-    },
-    suggestions: {
-        backgroundColor: '#fafafa',
-        border: '1px solid #e0e0e0',
-        borderRadius: '10px',
-        overflow: 'hidden'
-    },
-    suggestionItem: {
-        padding: '10px 12px',
-        borderBottom: '1px solid #e0e0e0',
-        cursor: 'pointer' as 'pointer',
-        fontSize: '14px'
-    },
-    noResult: {
-        fontSize: '12px',
-        color: '#666'
-    },
-    radiusControl: {
-        position: 'absolute' as 'absolute',
-        top: '20px',
-        right: '20px',
-        backgroundColor: 'white',
-        padding: '12px 14px',
-        borderRadius: '12px',
-        boxShadow: '0 2px 6px rgba(0,0,0,0.25)',
-        zIndex: 1000,
-        width: '180px',
-        fontFamily: 'system-ui, -apple-system, sans-serif'
-    },
-    radiusButtons: {
-        display: 'flex',
-        gap: '8px'
-    },
-    radiusButton: {
-        flex: 1,
-        padding: '10px 0',
-        borderRadius: '10px',
-        border: '1px solid #e0e0e0',
-        backgroundColor: '#f5f5f5',
-        fontSize: '16px',
-        fontWeight: 700,
-        cursor: 'pointer' as 'pointer'
-    },
-    radiusHint: {
-        marginTop: '8px',
-        fontSize: '12px',
-        color: '#666',
-        lineHeight: 1.4
-    }
+  uiWrapper: {
+    position: 'absolute' as 'absolute', top: '25px', left: '25px', zIndex: 1000,
+    display: 'flex', flexDirection: 'column' as 'column', gap: '15px'
+  },
+  searchBar: {
+    backgroundColor: 'white', padding: '10px 15px', borderRadius: '15px', width: '320px',
+    boxShadow: '0 8px 16px rgba(0,0,0,0.1)', display: 'flex', flexDirection: 'column' as 'column'
+  },
+  inputRow: { display: 'flex', alignItems: 'center' },
+  input: { flex: 1, border: 'none', outline: 'none', fontSize: '15px', padding: '5px' },
+  gpsBtn: { background: 'none', border: 'none', cursor: 'pointer', fontSize: '18px' },
+  suggestions: { marginTop: '10px', borderTop: '1px solid #eee' },
+  suggestionItem: { padding: '10px', cursor: 'pointer', fontSize: '14px', borderBottom: '1px solid #f9f9f9' },
+
+  badges: { display: 'flex', gap: '10px' },
+  badgeOuvert: {
+    background: colors.primary, color: 'white', padding: '8px 15px', borderRadius: '20px',
+    fontSize: '13px', fontWeight: 'bold' as 'bold', boxShadow: '0 4px 8px rgba(0,0,0,0.1)'
+  },
+  badgeRadius: {
+    background: 'white', color: '#333', padding: '8px 15px', borderRadius: '20px',
+    fontSize: '13px', fontWeight: 'bold' as 'bold', boxShadow: '0 4px 8px rgba(0,0,0,0.1)'
+  },
+
+  bottomRightControls: {
+    position: 'absolute' as 'absolute', bottom: '30px', right: '30px', zIndex: 1000,
+    display: 'flex', flexDirection: 'column' as 'column', alignItems: 'flex-end', gap: '15px'
+  },
+  radiusCard: {
+    background: 'white', padding: '10px', borderRadius: '15px', boxShadow: '0 8px 16px rgba(0,0,0,0.1)'
+  },
+  radiusButtons: { display: 'flex', flexDirection: 'column' as 'column', gap: '8px' },
+  circBtn: {
+    width: '40px', height: '40px', borderRadius: '20px', border: '1px solid #eee',
+    background: 'white', cursor: 'pointer', fontWeight: 'bold' as 'bold', fontSize: '20px'
+  },
+  legend: {
+    background: 'rgba(255,255,255,0.9)', padding: '8px 15px', borderRadius: '20px',
+    fontSize: '14px', fontWeight: 'bold' as 'bold', color: '#333', boxShadow: '0 4px 8px rgba(0,0,0,0.1)'
+  }
 };
