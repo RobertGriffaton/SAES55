@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { View, Text, StyleSheet, ActivityIndicator, Platform, TouchableOpacity } from "react-native";
 import { colors } from "../styles/theme";
-import { getAllRestaurants, getRestaurantsNearby } from "../services/Database";
+import { getAllRestaurants, getRestaurantsNearby, addFavorite, removeFavorite, isFavorite, getFavorites } from "../services/Database";
+import { getActiveProfile } from "../controllers/ProfileController";
 import 'leaflet/dist/leaflet.css';
 
 // Variables pour les modules chargés dynamiquement
@@ -21,6 +22,38 @@ export const MapView = ({ onRestaurantSelect }: MapViewProps) => {
   const [searchText, setSearchText] = useState("");
   const [citiesIndex, setCitiesIndex] = useState<{ label: string; lat: number; lon: number }[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [userId, setUserId] = useState<string>('default');
+  const [favoritesList, setFavoritesList] = useState<Set<number>>(new Set());
+
+  // charger l'utilisateur et ses favoris
+  useEffect(() => {
+    const init = async () => {
+      const profile = await getActiveProfile();
+      const uid = profile?.id || 'default';
+      setUserId(uid);
+
+      const favs = await getFavorites(uid);
+      setFavoritesList(new Set(favs.map(f => Number(f.id))));
+    };
+    init();
+  }, []);
+
+  const toggleFavorite = async (restaurant: any) => {
+    const restaurantId = Number(restaurant.id);
+    const isFav = favoritesList.has(restaurantId);
+
+    if (isFav) {
+      await removeFavorite(restaurantId, userId);
+      const newList = new Set(favoritesList);
+      newList.delete(restaurantId);
+      setFavoritesList(newList);
+    } else {
+      await addFavorite(restaurantId, userId);
+      const newList = new Set(favoritesList);
+      newList.add(restaurantId);
+      setFavoritesList(newList);
+    }
+  };
 
   useEffect(() => {
     const loadLeaflet = async () => {
@@ -181,6 +214,14 @@ export const MapView = ({ onRestaurantSelect }: MapViewProps) => {
               >
                 <Popup>
                   <div style={{ textAlign: 'center', minWidth: '150px' }}>
+                    <div style={{ position: 'absolute', top: '10px', right: '10px' }}>
+                      <button
+                        onClick={() => toggleFavorite(resto)}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', outline: 'none', fontSize: '20px' }}
+                      >
+                        {favoritesList.has(Number(resto.id)) ? '❤️' : '🤍'}
+                      </button>
+                    </div>
                     <strong style={{ fontSize: '16px' }}>{resto.name}</strong><br />
                     <span style={{ fontSize: '13px', color: '#666' }}>{resto.cuisines || resto.type}</span>
                     <br />

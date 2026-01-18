@@ -16,8 +16,9 @@ import { WebView } from "react-native-webview";
 import * as Location from "expo-location";
 import { Ionicons } from "@expo/vector-icons";
 import { colors } from "../styles/theme";
-import { getRestaurantsNearby } from "../services/Database";
+import { getRestaurantsNearby, addFavorite, removeFavorite, isFavorite } from "../services/Database";
 import { getRestaurantImage } from "../utils/ImageMapping";
+import { getActiveProfile } from "../controllers/ProfileController";
 
 const { width } = Dimensions.get('window');
 
@@ -39,8 +40,43 @@ export const MapViewComponent = ({ onRestaurantSelect }: MapViewProps) => {
   const [suggestions, setSuggestions] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
 
+  const [isFavoriteRestaurant, setIsFavoriteRestaurant] = useState(false);
+  const [userId, setUserId] = useState<string>('default');
+
   const webViewRef = useRef<WebView>(null);
   const carouselRef = useRef<FlatList>(null);
+
+  // 0. Récupérer l'ID de l'utilisateur
+  useEffect(() => {
+    const fetchUser = async () => {
+      const profile = await getActiveProfile();
+      if (profile?.id) setUserId(profile.id);
+    };
+    fetchUser();
+  }, []);
+
+  // Vérifier si le restaurant sélectionné est en favori
+  useEffect(() => {
+    const checkFav = async () => {
+      if (selectedRestaurant && selectedRestaurant.id) {
+        const fav = await isFavorite(Number(selectedRestaurant.id), userId);
+        setIsFavoriteRestaurant(fav);
+      }
+    };
+    checkFav();
+  }, [selectedRestaurant, userId]);
+
+  const toggleFavorite = async (restaurant: any) => {
+    if (!restaurant) return;
+    const restaurantId = Number(restaurant.id);
+    if (isFavoriteRestaurant) {
+      await removeFavorite(restaurantId, userId);
+      setIsFavoriteRestaurant(false);
+    } else {
+      await addFavorite(restaurantId, userId);
+      setIsFavoriteRestaurant(true);
+    }
+  };
 
   // 1. Initialisation GPS
   useEffect(() => {
@@ -367,8 +403,15 @@ export const MapViewComponent = ({ onRestaurantSelect }: MapViewProps) => {
                     <Text style={styles.restaurantDistance}>{item.distance ? `${item.distance.toFixed(1)} km` : '0.5km'}</Text>
                   </View>
                 </View>
-                <TouchableOpacity style={styles.favoriteButton}>
-                  <Ionicons name="heart-outline" size={20} color="#999" />
+                <TouchableOpacity
+                  style={styles.favoriteButton}
+                  onPress={() => toggleFavorite(item)}
+                >
+                  <Ionicons
+                    name={isFavoriteRestaurant ? "heart" : "heart-outline"}
+                    size={24}
+                    color={isFavoriteRestaurant ? "#FF6B6B" : "#999"}
+                  />
                 </TouchableOpacity>
               </TouchableOpacity>
             )}
