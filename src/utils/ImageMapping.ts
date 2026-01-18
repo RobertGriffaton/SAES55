@@ -24,44 +24,145 @@ export const CATEGORY_IMAGES: Record<string, any> = {
   ],
   "japonais": [
     require("../../assets/imagescover/japonais.png"),
-    // require("../../assets/imagescover/sushi.png"),
+    require("../../assets/imagescover/japonais2.png"),
   ],
 
-  // --- CATÉGORIES GÉNÉRIQUES (Image Unique) ---
-  "francais": require("../../assets/imagescover/francais.png"),
-  "italien": require("../../assets/imagescover/italien.png"),
-  "asiatique": require("../../assets/imagescover/asiatique.png"),
-  "kebab": require("../../assets/imagescover/kebab.png"),
-  "chinois": require("../../assets/imagescover/chinois.png"),
-  "sandwich": require("../../assets/imagescover/sandwich.png"),
-  "cafe": require("../../assets/imagescover/cafe.png"),
-  "asie_du_sud": require("../../assets/imagescover/asie_du_sud.png"),
-  "creperie": require("../../assets/imagescover/creperie.png"),
-  "thai": require("../../assets/imagescover/thai.png"),
-  "poulet": require("../../assets/imagescover/poulet.png"),
-  "vietnamien": require("../../assets/imagescover/vietnamien.png"),
-  "middle_eastern": require("../../assets/imagescover/middle_eastern.png"),
-  "oriental": require("../../assets/imagescover/oriental.png"),
-  "healthy": require("../../assets/imagescover/healthy.png"),
-  "latino": require("../../assets/imagescover/latino.png"),
-  "coreen": require("../../assets/imagescover/coreen.png"),
-  "turkish": require("../../assets/imagescover/turkish.png"),
-  "grill": require("../../assets/imagescover/grill.png"),
-  "patisserie": require("../../assets/imagescover/patisserie.png"),
-  "europeen": require("../../assets/imagescover/europeen.png"),
-  "fast_food": require("../../assets/imagescover/fast_food.png"),
-  "africain": require("../../assets/imagescover/africain.png"),
-  "bubble_tea": require("../../assets/imagescover/bubble_tea.png"),
-  "fruits_de_mer": require("../../assets/imagescover/fruits_de_mer.png"),
-  "americain": require("../../assets/imagescover/americain.png"),
-  "divers": require("../../assets/imagescover/divers.png"),
-  "mediterranean": require("../../assets/imagescover/mediterranean.png"),
-  "grec": require("../../assets/imagescover/grec.png"),
-  "espagnol": require("../../assets/imagescover/espagnol.png"),
-  "tacos": require("../../assets/imagescover/tacos.png"),
-  "creole": require("../../assets/imagescover/creole.png"),
-  "balkans": require("../../assets/imagescover/balkans.png"),
-  "bar": require("../../assets/imagescover/bar.png"),
+  "francais": [
+    require("../../assets/imagescover/francais.png"), 
+    require("../../assets/imagescover/francais2.png")
+  ],
+
+  "italien": [
+    require("../../assets/imagescover/italien.png"), 
+    require("../../assets/imagescover/italien2.png")],
+  
+    "asiatique": [
+    require("../../assets/imagescover/asiatique.png"), 
+    require("../../assets/imagescover/asiatique2.png")],
+  
+    "kebab": [
+    require("../../assets/imagescover/kebab.png"), 
+    require("../../assets/imagescover/kebab2.png")],
+  
+    "chinois": [
+      require("../../assets/imagescover/chinois.png"), 
+      require("../../assets/imagescover/chinois2.png")],
+  
+    "sandwich": [
+      require("../../assets/imagescover/sandwich.png"), 
+      require("../../assets/imagescover/sandwich2.png")],
+  
+    "cafe": [
+      require("../../assets/imagescover/cafe.png"), 
+      require("../../assets/imagescover/cafe2.png")],
+  
+    "asie_du_sud": [
+      require("../../assets/imagescover/asie_du_sud.png"), 
+      require("../../assets/imagescover/asie_du_sud2.png")],
+  
+    "creperie": [
+      require("../../assets/imagescover/creperie.png"),
+      require("../../assets/imagescover/creperie2.png")],
+  
+    "thai": [
+      require("../../assets/imagescover/thai.png"), 
+      require("../../assets/imagescover/thai2.png")],
+  
+    "poulet": [
+      require("../../assets/imagescover/poulet.png"), 
+      require("../../assets/imagescover/poulet2.png")],
+  
+    "vietnamien": [
+      require("../../assets/imagescover/vietnamien.png"), 
+      require("../../assets/imagescover/vietnamien2.png")],
+  
+    "middle_eastern": [
+      require("../../assets/imagescover/middle_eastern.png"), 
+      require("../../assets/imagescover/middle_eastern2.png")],
+  
+    "oriental": [
+      require("../../assets/imagescover/oriental.png"), 
+      require("../../assets/imagescover/oriental2.png")],
+  
+    "healthy": [
+      require("../../assets/imagescover/healthy.png"), 
+      require("../../assets/imagescover/healthy2.png")],
+  
+    "latino": [
+      require("../../assets/imagescover/latino.png"), 
+      require("../../assets/imagescover/latino2.png")],
+  
+    "coreen": [
+      require("../../assets/imagescover/coreen.png"), 
+      require("../../assets/imagescover/coreen2.png")],
+  
+    "turkish": [
+      require("../../assets/imagescover/turkish.png"), 
+      require("../../assets/imagescover/turkish2.png")],
+  
+    "grill": [
+      require("../../assets/imagescover/grill.png"), 
+      require("../../assets/imagescover/grill2.png")],
+  
+    "patisserie": [
+      require("../../assets/imagescover/patisserie.png"), 
+      require("../../assets/imagescover/patisserie2.png")],
+  
+    "europeen": [
+      require("../../assets/imagescover/europeen.png"), 
+      require("../../assets/imagescover/europeen2.png")],
+  
+    "fast_food": [
+      require("../../assets/imagescover/fast_food.png"), 
+      require("../../assets/imagescover/fast_food2.png")],
+  
+    "africain": [
+      require("../../assets/imagescover/africain.png"), 
+      require("../../assets/imagescover/africain2.png")],
+  
+    "bubble_tea": [
+      require("../../assets/imagescover/bubble_tea.png"), 
+      require("../../assets/imagescover/bubble_tea2.png")],
+  
+    "fruits_de_mer": [
+      require("../../assets/imagescover/fruits_de_mer.png"), 
+      require("../../assets/imagescover/fruits_de_mer2.png")],
+  
+    "americain": [
+      require("../../assets/imagescover/americain.png"), 
+      require("../../assets/imagescover/americain2.png")],
+  
+    "divers": [
+      require("../../assets/imagescover/divers.png"), 
+      require("../../assets/imagescover/divers2.png")],
+  
+    "mediterranean": [
+      require("../../assets/imagescover/mediterranean.png"), 
+      require("../../assets/imagescover/mediterranean2.png")],
+  
+    "grec": [
+      require("../../assets/imagescover/grec.png"), 
+      require("../../assets/imagescover/grec2.png")],
+  
+    "espagnol": [
+      require("../../assets/imagescover/espagnol.png"), 
+      require("../../assets/imagescover/espagnol2.png")],
+  
+    "tacos": [
+      require("../../assets/imagescover/tacos.png"), 
+      require("../../assets/imagescover/tacos2.png")],
+  
+    "creole": [
+      require("../../assets/imagescover/creole.png"), 
+      require("../../assets/imagescover/creole2.png")],
+  
+    "balkans": [
+      require("../../assets/imagescover/balkans.png"), 
+      require("../../assets/imagescover/balkans2.png")],
+  
+    "bar": [
+      require("../../assets/imagescover/bar.png"), 
+      require("../../assets/imagescover/bar2.png")],
 };
 
 /**
