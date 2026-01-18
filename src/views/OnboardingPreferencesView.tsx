@@ -815,7 +815,7 @@ const styles = StyleSheet.create({
     fontSize: 40,
   },
   cuisineEmojiInactive: {
-    opacity: 0.5,
+    opacity: 0.8,
   },
   cuisineLabel: {
     fontSize: 14,
