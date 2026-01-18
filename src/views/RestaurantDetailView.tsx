@@ -156,7 +156,7 @@ export const RestaurantDetailView = ({ restaurant, onBack }: RestaurantDetailPro
               </View>
             </View>
 
-            {/* Info Row: Rating, Price, Type */}
+            {/* Info Row: Rating, Type */}
             <View style={styles.infoRow}>
               {restaurant.rating ? (
                 <View style={styles.ratingBox}>
@@ -168,10 +168,6 @@ export const RestaurantDetailView = ({ restaurant, onBack }: RestaurantDetailPro
                 </View>
               ) : null}
               {restaurant.rating && <View style={styles.dot} />}
-              <Text style={styles.priceRange}>
-                {restaurant.price_range || restaurant.price || '€€'}
-              </Text>
-              <View style={styles.dot} />
               <Text style={styles.cuisineType}>{displayCuisines}</Text>
             </View>
 
@@ -220,8 +216,7 @@ export const RestaurantDetailView = ({ restaurant, onBack }: RestaurantDetailPro
               <Text style={styles.sectionTitle}>À propos</Text>
               <Text style={styles.aboutText}>
                 {restaurant.description ||
-                  `Découvrez ${restaurant.name}, un lieu unique proposant une cuisine ${displayCuisines.toLowerCase()}. `}
-                <Text style={styles.seeMore}>Voir plus</Text>
+                  `Découvrez ${restaurant.name}, un lieu unique proposant une cuisine ${displayCuisines.toLowerCase()}.`}
               </Text>
             </View>
 

@@ -539,7 +539,6 @@ export const SearchView = ({ onRestaurantSelect, savedState, onSaveState }: Sear
         {(!isSearching && searchText.length < 3) ? (
           <>
             <Text style={styles.sectionTitle}>Nos recommandations</Text>
-            <Text style={styles.sectionLink}>Voir tout</Text>
           </>
         ) : (
           <Text style={styles.sectionTitle}>Résultats pour "{searchText}"</Text>
