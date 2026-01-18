@@ -20,8 +20,12 @@ const EXPLORATION_PROBABILITY = 0.35; // Augmenté de 0.2 à 0.35
 const EXPLORATION_BOOST = 60;
 
 // --- PARAMÈTRES DE DIVERSITÉ ---
-const MIN_CUISINE_TYPES = 5; // Minimum de types de cuisine différents dans le top 20
+const MIN_CUISINE_TYPES = 8; // Minimum de types de cuisine différents dans le top 50
 const DIVERSITY_BOOST = 40; // Boost pour forcer la diversité
+
+// --- PARAMÈTRES DE FILTRAGE PAR NOTES ---
+const MIN_SCORE_THRESHOLD = 50; // Score minimum pour être inclus dans les résultats
+const MAX_SCORE_THRESHOLD = 500; // Score maximum (plafond)
 
 // Définition des types
 type HabitsMap = Record<string, number>;
@@ -38,7 +42,9 @@ let memoizedCache: {
 export const getAdaptiveRecommendations = async (
     forceLat?: number,
     forceLon?: number,
-    radiusKm: number = 20
+    radiusKm: number = 20,
+    minScore?: number,
+    maxScore?: number
 ) => {
     console.log("--- 🧠 Algo V4 : Multi-Armed Bandit (Exploration/Exploitation) ---");
 
@@ -194,12 +200,16 @@ export const getAdaptiveRecommendations = async (
     }
 
     // 6. 🌈 SYSTÈME DE DIVERSITÉ DES CUISINES (VERSION STRICTE)
-    // Au lieu de compter les types, on limite le nombre de restos par type dans le top 20
-    const MAX_PER_CUISINE = 6; // Maximum 6 restaurants du même type dans le top 20
+    // Au lieu de compter les types, on limite le nombre de restos par type dans le top 50
+    const MAX_PER_CUISINE = 10; // Maximum 10 restaurants du même type dans le top 50
+
+    // Appliquer les filtres de score min/max
+    const scoreMin = minScore ?? MIN_SCORE_THRESHOLD;
+    const scoreMax = maxScore ?? MAX_SCORE_THRESHOLD;
 
     // Trier par score pour avoir le top initial
     const sortedByScore = [...scoredData]
-        .filter((r: any) => r.score > 0)
+        .filter((r: any) => r.score > 0 && r.score >= scoreMin && r.score <= scoreMax)
         .sort((a: any, b: any) => b.score - a.score);
 
     // Compter les restaurants par type de cuisine principal (premier tag)
@@ -208,7 +218,7 @@ export const getAdaptiveRecommendations = async (
     const overflow: any[] = []; // Restaurants exclus pour diversité
 
     sortedByScore.forEach((resto: any) => {
-        if (diverseTop20.length >= 20) {
+        if (diverseTop20.length >= 50) {
             overflow.push(resto);
             return;
         }
@@ -229,15 +239,16 @@ export const getAdaptiveRecommendations = async (
         }
     });
 
-    // Si on n'a pas 20 restaurants, on complète avec l'overflow
-    if (diverseTop20.length < 20 && overflow.length > 0) {
-        const needed = 20 - diverseTop20.length;
+    // Si on n'a pas 50 restaurants, on complète avec l'overflow
+    if (diverseTop20.length < 50 && overflow.length > 0) {
+        const needed = 50 - diverseTop20.length;
         diverseTop20.push(...overflow.slice(0, needed));
         console.log(`[Diversité] Complété avec ${needed} restaurants de l'overflow`);
     }
 
     // Afficher les stats de diversité
-    console.log(`[Diversité] Distribution dans le top 20:`);
+    console.log(`[Diversité] Distribution dans le top 50:`);
+    console.log(`[Filtres] Score min: ${scoreMin}, Score max: ${scoreMax}`);
     Array.from(cuisineCount.entries())
         .sort((a, b) => b[1] - a[1])
         .forEach(([cuisine, count]) => {
@@ -259,10 +270,10 @@ export const getAdaptiveRecommendations = async (
 
     // 📊 LOGS DÉTAILLÉS DU CLASSEMENT
     console.log("\n========================================");
-    console.log("📊 CLASSEMENT DES RESTAURANTS (Top 20)");
+    console.log("📊 CLASSEMENT DES RESTAURANTS (Top 50)");
     console.log("========================================");
 
-    finalResult.slice(0, 20).forEach((resto: any, index: number) => {
+    finalResult.slice(0, 50).forEach((resto: any, index: number) => {
         const cuisines = resto.cuisines || resto.type || "Non spécifié";
         const score = resto.score.toFixed(2);
         const distance = resto.distanceKm ? `${resto.distanceKm.toFixed(1)}km` : "N/A";
