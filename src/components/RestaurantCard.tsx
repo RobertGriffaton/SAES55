@@ -57,7 +57,7 @@ const CATEGORY_IMAGES: Record<string, any> = {
   "africain": require("../../assets/imagescover/africain.png"),
   "bubble_tea": require("../../assets/imagescover/bubble_tea.png"),
   "fruits_de_mer": require("../../assets/imagescover/fruits_de_mer.png"),
-  "americain": require("../../assets/imagescover/americain.png"), 
+  "americain": require("../../assets/imagescover/americain.png"),
   "divers": require("../../assets/imagescover/divers.png"),
   "mediterranean": require("../../assets/imagescover/mediterranean.png"),
   "grec": require("../../assets/imagescover/grec.png"),
@@ -83,11 +83,11 @@ export const RestaurantCard = ({ restaurant, onPress }: RestaurantCardProps) => 
 
     // 1. PRIORITÉ : MARQUE
     if (restaurant.brand) {
-        candidates.push(String(restaurant.brand));
+      candidates.push(String(restaurant.brand));
     }
     // 2. PRIORITÉ : NOM
     if (restaurant.name) {
-        candidates.push(String(restaurant.name));
+      candidates.push(String(restaurant.name));
     }
 
     // 3. CUISINES
@@ -96,7 +96,7 @@ export const RestaurantCard = ({ restaurant, onPress }: RestaurantCardProps) => 
       const cuisineString = Array.isArray(cuisinesData) ? cuisinesData.join(",") : String(cuisinesData);
       candidates = [...candidates, ...cuisineString.split(",")];
     }
-    
+
     // 4. TYPE
     if (restaurant.type) {
       candidates.push(String(restaurant.type));
@@ -111,11 +111,11 @@ export const RestaurantCard = ({ restaurant, onPress }: RestaurantCardProps) => 
 
       // Test exact
       let found = CATEGORY_IMAGES[cleanKey];
-      
+
       // Test sans apostrophe
       if (!found) {
-         const noApostrophe = cleanKey.replace(/'/g, "");
-         found = CATEGORY_IMAGES[noApostrophe];
+        const noApostrophe = cleanKey.replace(/'/g, "");
+        found = CATEGORY_IMAGES[noApostrophe];
       }
 
       if (found) {
@@ -123,16 +123,16 @@ export const RestaurantCard = ({ restaurant, onPress }: RestaurantCardProps) => 
         // Si c'est un tableau, on choisit une image basée sur le nom du restaurant.
         // Cela garantit que le même restaurant a toujours la même image (pas de clignotement au scroll).
         if (Array.isArray(found)) {
-            const nameToHash = restaurant.name || "default";
-            let hash = 0;
-            for (let i = 0; i < nameToHash.length; i++) {
-                hash = nameToHash.charCodeAt(i) + ((hash << 5) - hash);
-            }
-            // Modulo pour avoir un index valide (0, 1, 2...)
-            const index = Math.abs(hash) % found.length;
-            return found[index];
+          const nameToHash = restaurant.name || "default";
+          let hash = 0;
+          for (let i = 0; i < nameToHash.length; i++) {
+            hash = nameToHash.charCodeAt(i) + ((hash << 5) - hash);
+          }
+          // Modulo pour avoir un index valide (0, 1, 2...)
+          const index = Math.abs(hash) % found.length;
+          return found[index];
         }
-        
+
         // Si c'est une image unique
         return found;
       }
@@ -153,14 +153,14 @@ export const RestaurantCard = ({ restaurant, onPress }: RestaurantCardProps) => 
     >
       <View style={styles.imageContainer}>
         {imageSource ? (
-          <Image 
-            source={imageSource} 
-            resizeMode="cover" 
-            style={styles.coverImage} 
+          <Image
+            source={imageSource}
+            resizeMode="cover"
+            style={styles.coverImage}
           />
         ) : (
           <View style={styles.placeholderContainer}>
-             <Ionicons name="restaurant" size={40} color="#fff" />
+            <Ionicons name="restaurant" size={40} color="#fff" />
           </View>
         )}
       </View>
@@ -177,9 +177,6 @@ export const RestaurantCard = ({ restaurant, onPress }: RestaurantCardProps) => 
         </Text>
 
         <View style={styles.badgesRow}>
-           <View style={styles.ratingBadge}>
-              <Text style={styles.ratingText}>4.5 ★</Text>
-           </View>
 
           {restaurant.vegetarian === 1 && (
             <View style={[styles.badge, { backgroundColor: "#E6F4EA" }]}>
@@ -187,15 +184,15 @@ export const RestaurantCard = ({ restaurant, onPress }: RestaurantCardProps) => 
               <Text style={[styles.badgeText, { color: "green" }]}>Végé</Text>
             </View>
           )}
-          
+
           {restaurant.vegan === 1 && (
             <View style={[styles.badge, { backgroundColor: "#E6F4EA" }]}>
               <Ionicons name="nutrition" size={12} color="green" />
               <Text style={[styles.badgeText, { color: "green" }]}>Vegan</Text>
             </View>
           )}
-          
-           {(restaurant.takeaway === 1 || restaurant.takeaway === "yes" || restaurant.takeaway === true) && (
+
+          {(restaurant.takeaway === 1 || restaurant.takeaway === "yes" || restaurant.takeaway === true) && (
             <View style={[styles.badge, { backgroundColor: "#FFF4E5" }]}>
               <Ionicons name="basket" size={12} color="orange" />
               <Text style={[styles.badgeText, { color: "orange" }]}>Emporter</Text>
@@ -211,9 +208,9 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: "#fff",
     borderRadius: 16,
-    marginBottom: 20, 
-    flexDirection: "column", 
-    overflow: "hidden", 
+    marginBottom: 20,
+    flexDirection: "column",
+    overflow: "hidden",
     width: "100%",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
@@ -225,7 +222,7 @@ const styles = StyleSheet.create({
   },
   imageContainer: {
     width: "100%",
-    aspectRatio: 16 / 9, 
+    aspectRatio: 16 / 9,
     backgroundColor: "#f0f0f0",
     position: "relative",
   },
