@@ -1,7 +1,9 @@
 import { FontAwesome, Ionicons } from '@expo/vector-icons';
+import * as Sharing from 'expo-sharing';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Animated,
   Dimensions,
   Image,
@@ -13,6 +15,7 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
+import { captureRef } from 'react-native-view-shot';
 import { getActiveProfile } from '../controllers/ProfileController';
 import { getFavorites, removeFavorite, unvalidateFavorite, validateFavorite } from '../services/Database';
 
@@ -189,6 +192,33 @@ export default function FavoritesView({ onRestaurantSelect }: FavoritesViewProps
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState<'toTest' | 'validated'>('toTest');
   const [userId, setUserId] = useState<string>('default');
+  const viewShotRef = useRef<View>(null);
+
+  const handleShareImage = async () => {
+    try {
+      if (!favorites.length && !validatedFavorites.length) {
+        Alert.alert('Liste vide', 'Ajoutez des favoris pour partager votre Graye List !');
+        return;
+      }
+
+      if (viewShotRef.current) {
+        const uri = await captureRef(viewShotRef, {
+          format: 'png',
+          quality: 0.9,
+          result: 'tmpfile'
+        });
+
+        await Sharing.shareAsync(uri, {
+          mimeType: 'image/png',
+          dialogTitle: 'Partager ma Graye List',
+          UTI: 'public.png'
+        });
+      }
+    } catch (error) {
+      console.error("Erreur partage image:", error);
+      Alert.alert('Erreur', 'Impossible de générer l\'image');
+    }
+  };
 
   const loadFavorites = useCallback(async () => {
     try {
@@ -259,11 +289,22 @@ export default function FavoritesView({ onRestaurantSelect }: FavoritesViewProps
     return null;
   };
 
-  // Formater les infos du restaurant
+  // Formater les infos du restaurant (Cuisine > Type • Ville • Distance)
   const formatInfo = (restaurant: any) => {
-    const type = restaurant.type?.replace(/_/g, ' ') || restaurant.cuisines?.split(',')[0] || 'Restaurant';
+    // 1. Déterminer le type (Cuisine prioritaire sur Type générique)
+    let displayType = restaurant.type?.replace(/_/g, ' ') || 'Restaurant';
+    if (restaurant.cuisines && restaurant.cuisines.length > 0) {
+      // Prend la première cuisine listée et met la 1ère lettre en majuscule
+      const mainCuisine = restaurant.cuisines.split(',')[0];
+      displayType = mainCuisine.charAt(0).toUpperCase() + mainCuisine.slice(1);
+    } else {
+      displayType = displayType.charAt(0).toUpperCase() + displayType.slice(1);
+    }
+
+    const city = restaurant.city || restaurant.meta_name_com || '';
     const distance = restaurant.distanceKm ? `${restaurant.distanceKm.toFixed(1)}km` : '';
-    return [type, distance].filter(Boolean).join(' • ');
+    
+    return [displayType, city, distance].filter(Boolean).join(' • ');
   };
 
   const currentList = activeTab === 'toTest' ? favorites : validatedFavorites;
@@ -281,7 +322,18 @@ export default function FavoritesView({ onRestaurantSelect }: FavoritesViewProps
 
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.title}>Graye List</Text>
+        <View style={styles.titleRow}>
+          <Text style={styles.title}>Graye List</Text>
+          {(favorites.length > 0 || validatedFavorites.length > 0) && (
+            <TouchableOpacity 
+              style={styles.shareButton}
+              onPress={handleShareImage}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="share-social" size={20} color="#6B4EFF" />
+            </TouchableOpacity>
+          )}
+        </View>
 
         <View style={styles.tabContainer}>
           <TouchableOpacity
@@ -372,6 +424,50 @@ export default function FavoritesView({ onRestaurantSelect }: FavoritesViewProps
         )}
 
       </ScrollView>
+
+      {/* Hidden View for Sharing - Correctly Placed */}
+      <View style={styles.hiddenContainer} collapsable={false}>
+        <View ref={viewShotRef} style={styles.shareContainer} collapsable={false}>
+          <View style={styles.shareHeader}>
+            <Text style={styles.shareTitle}>Ma Graye List ❤️</Text>
+            <Text style={styles.shareSubtitle}>
+              {favorites.length + validatedFavorites.length} restaurants coups de coeur
+            </Text>
+          </View>
+
+          <View style={styles.shareList}>
+            {[...favorites, ...validatedFavorites].slice(0, 8).map((restaurant, index) => (
+              <View key={`share-${restaurant.id || index}`} style={styles.shareItem}>
+                <View style={styles.shareImageContainer}>
+                   {getImageSource(restaurant) ? (
+                    <Image source={getImageSource(restaurant)} style={styles.shareImage} resizeMode="cover" />
+                  ) : (
+                    <View style={[styles.shareImage, { backgroundColor: '#ddd' }]} />
+                  )}
+                </View>
+                <View style={styles.shareInfo}>
+                   <Text style={styles.shareName} numberOfLines={1}>{restaurant.name}</Text>
+                   <Text style={styles.shareMeta}>
+                    {formatInfo(restaurant)}
+                   </Text>
+                </View>
+                {(restaurant.score || 90) > 85 && (
+                  <Text style={{ fontSize: 20 }}>🔥</Text>
+                )}
+              </View>
+            ))}
+            {favorites.length + validatedFavorites.length > 8 && (
+              <Text style={{ textAlign: 'center', color: '#9CA3AF', marginTop: 8 }}>
+                ... et {favorites.length + validatedFavorites.length - 8} autres pépites ✨
+              </Text>
+            )}
+          </View>
+
+          <View style={styles.shareFooter}>
+            <Text style={styles.shareFooterText}>Généré par App Graye List 🍽️</Text>
+          </View>
+        </View>
+      </View>
     </View>
   );
 }
@@ -397,6 +493,99 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     color: '#111827',
     marginBottom: 24,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  shareButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(107, 78, 255, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  // Share View Styles
+  hiddenContainer: {
+    position: 'absolute',
+    top: 0,
+    left: -10000, 
+    width: 375, // Largeur fixe type smartphone
+    backgroundColor: '#fff',
+  },
+  shareContainer: {
+    backgroundColor: '#fff',
+    padding: 24,
+    paddingBottom: 48,
+  },
+  shareHeader: {
+    alignItems: 'center',
+    marginBottom: 32,
+    marginTop: 16,
+  },
+  shareTitle: {
+    fontSize: 28,
+    fontWeight: '900',
+    color: '#6B4EFF',
+    marginBottom: 8,
+  },
+  shareSubtitle: {
+    fontSize: 16,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+  shareList: {
+    gap: 16,
+  },
+  shareItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F9FAFB',
+    borderRadius: 16,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
+  },
+  shareImageContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: 12,
+    backgroundColor: '#E5E7EB',
+    overflow: 'hidden',
+  },
+  shareImage: {
+    width: '100%',
+    height: '100%',
+  },
+  shareInfo: {
+    marginLeft: 16,
+    flex: 1,
+  },
+  shareName: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 4,
+  },
+  shareMeta: {
+    fontSize: 14,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+  shareFooter: {
+    marginTop: 32,
+    alignItems: 'center',
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+    paddingTop: 16,
+  },
+  shareFooterText: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    fontStyle: 'italic',
   },
   tabContainer: {
     backgroundColor: '#F5F5F7',

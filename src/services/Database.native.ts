@@ -10,7 +10,7 @@ const restaurantsList: any[] = Array.isArray(rawData)
   : (rawData.restaurants || []);
 
 // 2. OUVERTURE DE LA BASE DE DONNÉES
-const db = SQLite.openDatabaseSync('food_reco.db');
+const db = SQLite.openDatabaseSync('food_reco_v2.db');
 
 // --- FONCTIONS D'INITIALISATION ---
 
@@ -25,6 +25,7 @@ export const initDatabase = async () => {
         cuisines TEXT,
         lat REAL,
         lon REAL,
+        city TEXT,
         vegetarian INTEGER,
         vegan INTEGER,
         takeaway INTEGER
@@ -96,14 +97,15 @@ const insertDataFromJSON = async () => {
         const isTakeaway = (r.options && r.options.takeaway) ? 1 : (r.takeaway === "yes" ? 1 : 0);
 
         await db.runAsync(
-          `INSERT INTO restaurants (name, type, cuisines, lat, lon, vegetarian, vegan, takeaway) 
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO restaurants (name, type, cuisines, lat, lon, city, vegetarian, vegan, takeaway) 
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             r.name || "Inconnu",
             r.type || "restaurant",
             cuisinesStr,
             latitude,
             longitude,
+            r.meta_name_com || "",
             isVeg,
             isVegan,
             isTakeaway
