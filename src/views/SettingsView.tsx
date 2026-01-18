@@ -419,9 +419,6 @@ export const SettingsView = () => {
               source={AVATAR_IMAGES[activeProfile.avatar]}
               style={styles.avatarImage}
             />
-            <View style={styles.levelBadge}>
-              <Text style={styles.levelBadgeText}>Lvl {activeProfile.level}</Text>
-            </View>
           </TouchableOpacity>
 
           <View style={styles.profileInfo}>
@@ -435,12 +432,6 @@ export const SettingsView = () => {
             </TouchableOpacity>
             <Text style={styles.memberSince}>
               Membre depuis {formatMemberSince(activeProfile.createdAt)}
-            </Text>
-            <View style={styles.progressBar}>
-              <View style={[styles.progressFill, { width: `${levelProgress}%` }]} />
-            </View>
-            <Text style={styles.progressText}>
-              {levelProgress}% vers {levelTitle} 🍔
             </Text>
           </View>
         </View>
@@ -465,7 +456,6 @@ export const SettingsView = () => {
                       profile.id === activeProfile.id && styles.profilePillActive,
                     ]}
                     onPress={() => handleSwitchProfile(profile.id)}
-                    onLongPress={() => handleDeleteProfile(profile)}
                   >
                     <Image
                       source={AVATAR_IMAGES[profile.avatar]}
@@ -614,6 +604,17 @@ export const SettingsView = () => {
         <TouchableOpacity style={styles.saveBtn} onPress={handleSavePreferences}>
           <Text style={styles.saveBtnText}>Enregistrer mes goûts</Text>
         </TouchableOpacity>
+
+        {/* Bouton Supprimer le profil */}
+        {profiles.length > 1 && (
+          <TouchableOpacity
+            style={styles.deleteProfileBottomBtn}
+            onPress={() => handleDeleteProfile(activeProfile)}
+          >
+            <Ionicons name="trash-outline" size={18} color="#ff4444" />
+            <Text style={styles.deleteProfileBottomText}>Supprimer ce profil</Text>
+          </TouchableOpacity>
+        )}
 
         {/* Mentions légales */}
         <View style={styles.footer}>
@@ -792,6 +793,16 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
+  },
+  profilePillContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  deleteProfileBtn: {
+    marginLeft: 4,
+    padding: 6,
+    borderRadius: 12,
+    backgroundColor: "#ffeeee",
   },
   profilePill: {
     flexDirection: "row",
@@ -1043,6 +1054,23 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 18,
     fontWeight: "800",
+  },
+  deleteProfileBottomBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 14,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: "#ffcccc",
+    borderRadius: 12,
+    backgroundColor: "#fff5f5",
+  },
+  deleteProfileBottomText: {
+    color: "#ff4444",
+    fontSize: 14,
+    fontWeight: "600",
   },
 
   // Footer
