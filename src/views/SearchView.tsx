@@ -58,6 +58,47 @@ const ITEMS_PER_PAGE = 10;
 const MAX_SUGGESTIONS = 7;
 const RADIUS_OPTIONS = [2, 5, 10, 20];
 
+// Liste complète des catégories de cuisine avec emojis
+const CUISINE_CATEGORIES = [
+  { id: "burger", label: "Burgers", emoji: "🍔" },
+  { id: "japonais", label: "Jap'", emoji: "🍣" },
+  { id: "pizza", label: "Pizza", emoji: "🍕" },
+  { id: "healthy", label: "Healthy", emoji: "🥗" },
+  { id: "kebab", label: "Kebab", emoji: "🥙" },
+  { id: "tacos", label: "Tacos", emoji: "🌮" },
+  { id: "francais", label: "Français", emoji: "🧀" },
+  { id: "italien", label: "Italien", emoji: "🍝" },
+  { id: "chinois", label: "Chinois", emoji: "🥡" },
+  { id: "asiatique", label: "Asiatique", emoji: "🍜" },
+  { id: "thai", label: "Thaï", emoji: "🍛" },
+  { id: "vietnamien", label: "Vietnamien", emoji: "🍲" },
+  { id: "coreen", label: "Coréen", emoji: "🍱" },
+  { id: "africain", label: "Africain", emoji: "🥘" },
+  { id: "oriental", label: "Oriental", emoji: "🧆" },
+  { id: "grec", label: "Grec", emoji: "🥚" },
+  { id: "latino", label: "Latino", emoji: "🌶️" },
+  { id: "poulet", label: "Poulet", emoji: "🍗" },
+  { id: "sandwich", label: "Sandwich", emoji: "🥪" },
+  { id: "fast_food", label: "Fast Food", emoji: "🌟" },
+  { id: "cafe", label: "Café", emoji: "☕" },
+  { id: "patisserie", label: "Pâtisserie", emoji: "🧁" },
+  { id: "creperie", label: "Crêperie", emoji: "🥞" },
+  { id: "grill", label: "Grill", emoji: "🥩" },
+  { id: "fruits_de_mer", label: "Fruits de mer", emoji: "🦐" },
+  { id: "bubble_tea", label: "Bubble Tea", emoji: "🧋" },
+  { id: "americain", label: "Américain", emoji: "🍟" },
+  { id: "espagnol", label: "Espagnol", emoji: "🥘" },
+  { id: "turkish", label: "Turc", emoji: "🧇" },
+  { id: "creole", label: "Créole", emoji: "🌴" },
+  { id: "mediterranean", label: "Méditerranéen", emoji: "🌿" },
+  { id: "asie_du_sud", label: "Asie du Sud", emoji: "🍛" },
+  { id: "middle_eastern", label: "Moyen-Orient", emoji: "🧆" },
+  { id: "europeen", label: "Européen", emoji: "🇪🇺" },
+  { id: "balkans", label: "Balkans", emoji: "🥩" },
+  { id: "bar", label: "Bar", emoji: "🍻" },
+  { id: "divers", label: "Divers", emoji: "🍽️" },
+];
+
 export const SearchView = ({ onRestaurantSelect, savedState, onSaveState }: SearchViewProps) => {
   // --- 3. INITIALISATION AVEC savedState ---
   const [allRestaurants, setAllRestaurants] = useState<any[]>(savedState?.restaurants || []);
@@ -476,18 +517,16 @@ export const SearchView = ({ onRestaurantSelect, savedState, onSaveState }: Sear
               <Text style={styles.categoryEmoji}>🔥</Text>
               <Text style={[styles.categoryText, selectedCategories.length === 0 && styles.categoryTextActive]}>Pour toi</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.categoryPill, selectedCategories.includes("burger") && styles.categoryPillActive]} onPress={() => toggleCategory("burger")}>
-              <Text style={styles.categoryEmoji}>🍔</Text>
-              <Text style={[styles.categoryText, selectedCategories.includes("burger") && styles.categoryTextActive]}>Burgers</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.categoryPill, selectedCategories.includes("japonais") && styles.categoryPillActive]} onPress={() => toggleCategory("japonais")}>
-              <Text style={styles.categoryEmoji}>🍣</Text>
-              <Text style={[styles.categoryText, selectedCategories.includes("japonais") && styles.categoryTextActive]}>Jap'</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.categoryPill, selectedCategories.includes("healthy") && styles.categoryPillActive]} onPress={() => toggleCategory("healthy")}>
-              <Text style={styles.categoryEmoji}>🥗</Text>
-              <Text style={[styles.categoryText, selectedCategories.includes("healthy") && styles.categoryTextActive]}>Healthy</Text>
-            </TouchableOpacity>
+            {CUISINE_CATEGORIES.map((cat) => (
+              <TouchableOpacity
+                key={cat.id}
+                style={[styles.categoryPill, selectedCategories.includes(cat.id) && styles.categoryPillActive]}
+                onPress={() => toggleCategory(cat.id)}
+              >
+                <Text style={styles.categoryEmoji}>{cat.emoji}</Text>
+                <Text style={[styles.categoryText, selectedCategories.includes(cat.id) && styles.categoryTextActive]}>{cat.label}</Text>
+              </TouchableOpacity>
+            ))}
           </ScrollView>
         </View>
       )}
@@ -522,12 +561,6 @@ export const SearchView = ({ onRestaurantSelect, savedState, onSaveState }: Sear
               <TouchableOpacity style={[styles.chip, takeawayOnly && styles.chipActive]} onPress={() => setTakeawayOnly((v) => !v)}><Ionicons name="bag-handle-outline" size={14} color={takeawayOnly ? "#fff" : colors.text} style={{ marginRight: 6 }} /><Text style={[styles.chipText, takeawayOnly && styles.chipTextActive]}>À emporter</Text></TouchableOpacity>
               <TouchableOpacity style={[styles.chip, onSiteOnly && styles.chipActive]} onPress={() => setOnSiteOnly((v) => !v)}><Ionicons name="restaurant-outline" size={14} color={onSiteOnly ? "#fff" : colors.text} style={{ marginRight: 6 }} /><Text style={[styles.chipText, onSiteOnly && styles.chipTextActive]}>Sur place</Text></TouchableOpacity>
             </View>
-          </View>
-          <View style={styles.filterRow}>
-            <Text style={styles.filterLabel}>Type de cuisine</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsRow}>
-              {categoryOptions.map((cat) => { const active = selectedCategories.includes(cat); return (<TouchableOpacity key={cat} onPress={() => toggleCategory(cat)} style={[styles.chip, active && styles.chipActive]}><Text style={[styles.chipText, active && styles.chipTextActive]}>{formatLabel(cat)}</Text></TouchableOpacity>); })}
-            </ScrollView>
           </View>
           {locationError ? <Text style={styles.errorText}>{locationError}</Text> : null}
           {requestingLocation && (<View style={styles.locatingRow}><ActivityIndicator size="small" color={colors.primary} /><Text style={styles.locatingText}>Recherche de votre position...</Text></View>)}
