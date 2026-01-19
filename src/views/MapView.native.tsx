@@ -1,32 +1,82 @@
-import React, { useEffect, useState, useRef } from "react";
-import { View, StyleSheet, ActivityIndicator, Text, Alert, TouchableOpacity, TextInput, Keyboard, FlatList } from "react-native";
+import React, { useEffect, useState, useRef, useMemo } from "react";
+import {
+  View,
+  StyleSheet,
+  ActivityIndicator,
+  Text,
+  Alert,
+  TouchableOpacity,
+  TextInput,
+  Keyboard,
+  FlatList,
+  Image,
+  Dimensions
+} from "react-native";
 import { WebView } from "react-native-webview";
 import * as Location from "expo-location";
 import { Ionicons } from "@expo/vector-icons";
 import { colors } from "../styles/theme";
-import { getRestaurantsNearby } from "../services/Database";
+import { getRestaurantsNearby, addFavorite, removeFavorite, isFavorite } from "../services/Database";
+import { getRestaurantImage } from "../utils/ImageMapping";
+import { getActiveProfile } from "../controllers/ProfileController";
+import { MapSessionState } from "../models/MapModel";
+
+const { width } = Dimensions.get('window');
 
 interface MapViewProps {
   onRestaurantSelect?: (restaurant: any) => void;
+  savedState?: MapSessionState | null;
+  onSaveState?: (state: MapSessionState) => void;
 }
 
-export const MapViewComponent = ({ onRestaurantSelect }: MapViewProps) => {
+export const MapViewComponent = ({ onRestaurantSelect, savedState, onSaveState }: MapViewProps) => {
   // États
-  const [position, setPosition] = useState<[number, number] | null>(null);
+  const [position, setPosition] = useState<[number, number] | null>(savedState?.position || null);
   const [userPosition, setUserPosition] = useState<[number, number] | null>(null);
-  const [restaurants, setRestaurants] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [radiusKm, setRadiusKm] = useState(5);
-  
+  const [restaurants, setRestaurants] = useState<any[]>(savedState?.restaurants || []);
+  const [loading, setLoading] = useState(!savedState?.position);
+  const [radiusKm, setRadiusKm] = useState(savedState?.radiusKm || 5);
+  const [selectedRestaurant, setSelectedRestaurant] = useState<any | null>(savedState?.selectedRestaurant || null);
+  const [isFavoriteRestaurant, setIsFavoriteRestaurant] = useState(false);
+  const [userId, setUserId] = useState<string>('default');
+
   // Recherche
-  const [searchText, setSearchText] = useState("");
+  const [searchText, setSearchText] = useState(savedState?.searchText || "");
   const [suggestions, setSuggestions] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
 
   const webViewRef = useRef<WebView>(null);
+  const carouselRef = useRef<FlatList>(null);
+  const skipSearchRef = useRef(!!savedState?.searchText);
+
+  // 0. Récupérer l'ID de l'utilisateur
+  useEffect(() => {
+    const fetchUser = async () => {
+      const profile = await getActiveProfile();
+      if (profile?.id) setUserId(profile.id);
+    };
+    fetchUser();
+  }, []);
+
+  // Vérifier si le restaurant sélectionné est en favori
+  useEffect(() => {
+    const checkFav = async () => {
+      if (selectedRestaurant && selectedRestaurant.id) {
+        const fav = await isFavorite(Number(selectedRestaurant.id), userId);
+        setIsFavoriteRestaurant(fav);
+      }
+    };
+    checkFav();
+  }, [selectedRestaurant, userId]);
 
   // 1. Initialisation GPS
   useEffect(() => {
+    // Si on a déjà une position restaurée, on évite de tout relancer
+    if (savedState?.position && savedState?.restaurants?.length > 0) {
+      setLoading(false);
+      return;
+    }
+
     (async () => {
       try {
         let { status } = await Location.requestForegroundPermissionsAsync();
@@ -39,29 +89,21 @@ export const MapViewComponent = ({ onRestaurantSelect }: MapViewProps) => {
           return;
         }
 
-        // Optimisation : On tente d'abord la dernière position connue
         let location = await Location.getLastKnownPositionAsync({});
-
         if (!location) {
-          console.log("[Map] Pas de cache GPS, localisation active...");
           location = await Location.getCurrentPositionAsync({
             accuracy: Location.Accuracy.Balanced
           });
-        } else {
-          console.log("[Map] Utilisation dernière position connue.");
         }
 
         if (location) {
-            const { latitude, longitude } = location.coords;
-            setUserPosition([latitude, longitude]);
-            setPosition([latitude, longitude]);
-            
-            // Chargement initial
-            fetchRestaurants(latitude, longitude, 5);
+          const { latitude, longitude } = location.coords;
+          setUserPosition([latitude, longitude]);
+          setPosition([latitude, longitude]);
+          fetchRestaurants(latitude, longitude, 5);
         }
       } catch (e) {
         console.warn("Erreur init Map:", e);
-        Alert.alert("Erreur", "Impossible de récupérer la position.");
       } finally {
         setLoading(false);
       }
@@ -71,77 +113,178 @@ export const MapViewComponent = ({ onRestaurantSelect }: MapViewProps) => {
   // 2. Debounce pour la recherche
   useEffect(() => {
     const delayDebounceFn = setTimeout(() => {
+      if (skipSearchRef.current) {
+        skipSearchRef.current = false;
+        return;
+      }
       if (searchText.length > 3) {
         fetchAddressSuggestions(searchText);
       } else {
         setSuggestions([]);
       }
     }, 800);
-
     return () => clearTimeout(delayDebounceFn);
   }, [searchText]);
 
-
-  // 3. API Adresse Data Gouv
   const fetchAddressSuggestions = async (query: string) => {
     setIsSearching(true);
     try {
-        const url = `https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(query)}&limit=5&autocomplete=1`;
-        const response = await fetch(url);
-        const json = await response.json();
-        setSuggestions(json.features || []);
+      const url = `https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(query)}&limit=5&autocomplete=1`;
+      const response = await fetch(url);
+      const json = await response.json();
+      setSuggestions(json.features || []);
     } catch (e) {
-        console.warn("Erreur API Adresse", e);
+      console.warn("Erreur API Adresse", e);
     } finally {
-        setIsSearching(false);
+      setIsSearching(false);
     }
   };
 
-  // 4. Charger les restaurants
+  // 2 bis. Sauvegarde de l'état (DEBOUNCED pour éviter les crashs de rendu parent)
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      if (onSaveState) {
+        onSaveState({
+          searchText,
+          position,
+          radiusKm,
+          selectedRestaurant,
+          restaurants
+        });
+      }
+    }, 1500); // Sauvegarde toutes les 1.5s max
+    return () => clearTimeout(handler);
+  }, [searchText, position, radiusKm, selectedRestaurant, restaurants]);
+
   const fetchRestaurants = async (lat: number, lon: number, rad: number) => {
     try {
       const data = await getRestaurantsNearby(lat, lon, rad);
       setRestaurants(data);
+      if (data.length > 0) {
+        setSelectedRestaurant(data[0]);
+      }
+
+      // Injecter les nouveaux marqueurs sans recharger la carte
+      // OPTIMISATION : On limite à 100 marqueurs et on ne passe que le strict nécessaire
+      if (webViewRef.current) {
+        const lightData = data.slice(0, 100).map((r: any) => ({
+          id: r.id,
+          lat: r.lat,
+          lon: r.lon,
+          name: r.name,
+          cuisines: r.cuisines,
+          type: r.type
+        }));
+
+        webViewRef.current.injectJavaScript(`
+          if (typeof renderMarkers === 'function') {
+            renderMarkers(${JSON.stringify(lightData)});
+          }
+          true;
+        `);
+      }
     } catch (e) {
       console.error(e);
     }
   };
 
-  // 5. Sélection d'une adresse
+
+
   const handleSelectAddress = (item: any) => {
     const lon = item.geometry.coordinates[0];
     const lat = item.geometry.coordinates[1];
-    const label = item.properties.label;
 
-    setSearchText(label);
+    // Bloquer la recherche auto pour éviter que les suggestions reviennent
+    skipSearchRef.current = true;
+    setSearchText(item.properties.label);
     setSuggestions([]);
     Keyboard.dismiss();
-
     setPosition([lat, lon]);
     fetchRestaurants(lat, lon, radiusKm);
+
+    // Zoom automatique et déplacement du marqueur sur l'adresse sélectionnée
+    if (webViewRef.current) {
+      const script = `
+        if (typeof window.map !== 'undefined') {
+          window.shouldFitBounds = false;
+          window.map.setView([${lat}, ${lon}], 15, { animate: true });
+          // Déplacer le marqueur bleu sur la recherche
+          if (window.updateUserPos) {
+            window.updateUserPos(${lat}, ${lon});
+          }
+          setTimeout(() => { window.shouldFitBounds = true; }, 3000);
+        }
+        true;
+      `;
+      webViewRef.current.injectJavaScript(script);
+    }
   };
 
   const changeRadius = (delta: number) => {
     if (!position) return;
     const newRadius = Math.max(1, Math.min(50, radiusKm + delta));
     if (newRadius !== radiusKm) {
-        setRadiusKm(newRadius);
-        fetchRestaurants(position[0], position[1], newRadius);
+      setRadiusKm(newRadius);
+      fetchRestaurants(position[0], position[1], newRadius);
+
+      // Feedback immédiat : on zoom/dézoom la carte
+      if (webViewRef.current) {
+        // Delta < 0 means "+" clicked (radius decreases -> zoom in)
+        // Delta > 0 means "-" clicked (radius increases -> zoom out)
+        const script = delta < 0
+          ? "if (window.map) { window.shouldFitBounds = false; window.map.zoomIn(); setTimeout(() => { window.shouldFitBounds = true; }, 3000); } true;"
+          : "if (window.map) { window.shouldFitBounds = false; window.map.zoomOut(); setTimeout(() => { window.shouldFitBounds = true; }, 3000); } true;";
+        webViewRef.current.injectJavaScript(script);
+      }
     }
   };
 
-  const resetToGPS = () => {
-    if(userPosition) {
+  const toggleFavorite = async (restaurant: any) => {
+    if (!restaurant) return;
+    const restaurantId = Number(restaurant.id);
+    if (isFavoriteRestaurant) {
+      await removeFavorite(restaurantId, userId);
+      setIsFavoriteRestaurant(false);
+    } else {
+      await addFavorite(restaurantId, userId);
+      setIsFavoriteRestaurant(true);
+    }
+  };
+
+  const centerOnRealGPS = async () => {
+    try {
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced
+      });
+      if (location && webViewRef.current) {
+        const { latitude: lat, longitude: lon } = location.coords;
         setSearchText("");
         setSuggestions([]);
-        setPosition(userPosition);
-        fetchRestaurants(userPosition[0], userPosition[1], radiusKm);
+        // 1. On met à jour les positions (recherche + réelle)
+        setPosition([lat, lon]);
+        setUserPosition([lat, lon]);
+        fetchRestaurants(lat, lon, radiusKm);
+
+        // 2. On demande au WebView de se déplacer et de zoomer
+        const script = `
+          window.shouldFitBounds = false;
+          if (typeof window.updateUserPos === 'function') {
+             window.updateUserPos(${lat}, ${lon}, 15);
+          } else if (typeof window.map !== 'undefined') {
+             window.map.setView([${lat}, ${lon}], 15, { animate: true });
+          }
+          setTimeout(() => { window.shouldFitBounds = true; }, 3000);
+          true;
+        `;
+        webViewRef.current.injectJavaScript(script);
+      }
+    } catch (e) {
+      console.warn("Erreur recentrage GPS:", e);
     }
   };
 
-  // HTML DE LA CARTE LEAFLET
-  // J'ai ajouté une règle CSS pour décaler .leaflet-top vers le bas (top: 120px)
-  const mapHtml = `
+  // HTML DE LA CARTE LEAFLET (Statique pour éviter les rechargements)
+  const mapHtml = useMemo(() => `
     <!DOCTYPE html>
     <html>
       <head>
@@ -150,95 +293,144 @@ export const MapViewComponent = ({ onRestaurantSelect }: MapViewProps) => {
         <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
         <style>
           body { margin: 0; padding: 0; }
-          #map { width: 100%; height: 100vh; background: #e1e1e1; }
+          #map { width: 100%; height: 100vh; background: #f0f0f0; }
+          .leaflet-top { top: 180px; }
           
-          /* FIX: On décale les contrôles du haut (Zoom) pour qu'ils ne soient pas sous la barre de recherche */
-          .leaflet-top {
-            top: 120px; 
+          .custom-div-icon { background: none; border: none; }
+          .custom-marker {
+            width: 36px; height: 36px;
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            border: 3px solid white;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.3);
+            font-size: 18px;
+          }
+
+          .user-marker {
+            width: 52px; height: 52px;
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            border: 4px solid white;
+            box-shadow: 0 0 25px rgba(0, 122, 255, 0.9), 0 0 45px rgba(0, 122, 255, 0.4);
+            font-size: 26px;
+            background: #007AFF;
+            animation: pulse-user 1.5s infinite;
+            position: relative;
+            z-index: 1000;
+          }
+          .user-marker::after {
+            content: '';
+            position: absolute;
+            width: 100%; height: 100%;
+            border-radius: 50%;
+            border: 2px solid #007AFF;
+            animation: halo 1.5s linear infinite;
+          }
+          @keyframes halo {
+            0% { transform: scale(1); opacity: 1; }
+            100% { transform: scale(2.5); opacity: 0; }
+          }
+          @keyframes pulse-user {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.15); }
+            100% { transform: scale(1); }
           }
         </style>
       </head>
       <body>
         <div id="map"></div>
         <script>
-          var data = ${JSON.stringify(restaurants)};
-          var centerLat = ${position ? position[0] : 48.85};
-          var centerLon = ${position ? position[1] : 2.35};
+          window.shouldFitBounds = false; 
 
-          var map = L.map('map').setView([centerLat, centerLon], 13);
+          window.map = L.map('map', { zoomControl: false }).setView([48.85, 2.35], 15);
+          
+          L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png', {
+            attribution: '© CARTO', maxZoom: 20
+          }).addTo(window.map);
 
-          L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png', {
-            attribution: '© CARTO', maxZoom: 19
-          }).addTo(map);
-
-          var blueIcon = L.icon({
-            iconUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png',
-            shadowUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png',
-            iconSize: [25, 41],
-            iconAnchor: [12, 41],
-            popupAnchor: [1, -34]
+          // IMPORTANT: Désactiver le fitBounds automatique dès que l'utilisateur touche la carte
+          window.map.on('movestart', function() {
+            window.shouldFitBounds = false;
           });
 
-          var redIcon = L.icon({
-            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
-            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-            iconSize: [25, 41],
-            iconAnchor: [12, 41],
-            popupAnchor: [1, -34]
-          });
+          var userMarker = L.marker([48.85, 2.35], {
+            icon: L.divIcon({
+              className: 'custom-div-icon',
+              html: '<div class="user-marker">📍</div>',
+              iconSize: [52, 52], iconAnchor: [26, 26]
+            })
+          }).addTo(window.map);
 
-          // Marqueur Utilisateur
-          var userMarker = L.marker([centerLat, centerLon], {icon: redIcon})
-           .addTo(map)
-           .bindPopup("<b>📍 RECHERCHE</b>")
-           .openPopup();
+          window.updateUserPos = function(lat, lon, zoom) {
+            if (!lat || !lon) return;
+            userMarker.setLatLng([lat, lon]);
+            if (zoom && window.map) {
+              window.map.setView([lat, lon], zoom, { animate: true });
+            }
+          };
 
-          var markersLayer = L.layerGroup().addTo(map);
+          var markersLayer = L.layerGroup().addTo(window.map);
 
           function renderMarkers(restos) {
-             markersLayer.clearLayers();
-             var group = L.featureGroup();
-             group.addLayer(userMarker);
+            if (!restos) return;
+            markersLayer.clearLayers();
+            var group = L.featureGroup();
+            group.addLayer(userMarker);
 
-             restos.forEach(function(r) {
-               var m = L.marker([r.lat, r.lon], {icon: blueIcon});
-               m.on('click', function() { 
-                 window.ReactNativeWebView.postMessage(JSON.stringify(r)); 
-               });
-               m.bindPopup("<b>" + r.name + "</b><br>" + (r.cuisines || r.type));
-               markersLayer.addLayer(m);
-               group.addLayer(m);
-             });
+            restos.forEach(function(r) {
+              var cuisine = (r.cuisines || r.type || '').toLowerCase();
+              var color = '#6B4EFF';
+              var icon = '🍽️';
 
-             if (restos.length > 0) {
-                 map.fitBounds(group.getBounds().pad(0.1));
-             }
+              if (cuisine.includes('burger')) { color = '#FF6B6B'; icon = '🍔'; }
+              else if (cuisine.includes('pizza')) { color = '#FFA500'; icon = '🍕'; }
+              else if (cuisine.includes('sushi') || cuisine.includes('asian')) { color = '#FF69B4'; icon = '🍱'; }
+              
+              var m = L.marker([r.lat, r.lon], {
+                icon: L.divIcon({
+                  className: 'custom-div-icon',
+                  html: '<div class="custom-marker" style="background: ' + color + '">' + icon + '</div>',
+                  iconSize: [36, 36], iconAnchor: [18, 18]
+                })
+              });
+
+              m.on('click', function() {
+                window.ReactNativeWebView.postMessage(JSON.stringify(r));
+              });
+
+              markersLayer.addLayer(m);
+              group.addLayer(m);
+            });
+
+            if (restos.length > 0 && window.shouldFitBounds) {
+              window.map.fitBounds(group.getBounds().pad(0.15), {
+                paddingTopLeft: [0, 150],
+                paddingBottomRight: [0, 200],
+                maxZoom: 18
+              });
+            }
           }
 
-          if (data && data.length > 0) {
-             renderMarkers(data);
-          }
+          window.renderMarkers = renderMarkers;
+          // Activation du fitBounds après chargement initial
+          setTimeout(function() { window.shouldFitBounds = true; }, 3000);
         </script>
       </body>
     </html>
-  `;
+  `, []);
 
   const handleMessage = (event: any) => {
     try {
-        const r = JSON.parse(event.nativeEvent.data);
-        if (onRestaurantSelect) onRestaurantSelect(r);
-    } catch(e) {}
-  };
-
-  const reloadMap = () => {
-    if (webViewRef.current) webViewRef.current.reload();
+      const r = JSON.parse(event.nativeEvent.data);
+      setSelectedRestaurant(r);
+    } catch (e) { }
   };
 
   if (loading || !position) {
     return (
       <View style={styles.loaderContainer}>
         <ActivityIndicator size="large" color={colors.primary} />
-        <Text style={{marginTop: 10, color: '#666'}}>Chargement...</Text>
+        <Text style={{ marginTop: 10, color: '#666' }}>Chargement...</Text>
       </View>
     );
   }
@@ -247,140 +439,207 @@ export const MapViewComponent = ({ onRestaurantSelect }: MapViewProps) => {
     <View style={styles.container}>
       <WebView
         ref={webViewRef}
-        key={`${position[0]}-${position[1]}-${radiusKm}`}
+        key="map-static-root"
         originWhitelist={['*']}
         source={{ html: mapHtml }}
         style={styles.map}
         onMessage={handleMessage}
         javaScriptEnabled={true}
+        onLoad={() => {
+          // Injection initiale des données
+          if (webViewRef.current && position) {
+            const lightData = restaurants.slice(0, 100).map((r: any) => ({
+              id: r.id, lat: r.lat, lon: r.lon, name: r.name, cuisines: r.cuisines, type: r.type
+            }));
+            const script = `
+              if (window.updateUserPos) window.updateUserPos(${position[0]}, ${position[1]}, 15);
+              if (window.renderMarkers) window.renderMarkers(${JSON.stringify(lightData)});
+              true;
+            `;
+            webViewRef.current.injectJavaScript(script);
+          }
+        }}
       />
-      
+
       {/* BARRE DE RECHERCHE */}
       <View style={styles.searchContainer}>
-        <View style={styles.searchBar}>
+        <View style={styles.searchRow}>
+          <View style={styles.searchBar}>
+            <TouchableOpacity onPress={centerOnRealGPS}>
+              <Ionicons name="locate" size={20} color={colors.primary} />
+            </TouchableOpacity>
             <TextInput
-                style={styles.input}
-                placeholder="Adresse (ex: 25 rue...)"
-                value={searchText}
-                onChangeText={setSearchText}
+              style={styles.input}
+              placeholder="Rechercher une zone..."
+              value={searchText}
+              onChangeText={setSearchText}
+              placeholderTextColor="#999"
             />
-            {isSearching ? (
-                <ActivityIndicator size="small" color={colors.primary} />
-            ) : (
-                <Ionicons name="search" size={20} color="#999" />
+            {searchText.length > 0 && (
+              <TouchableOpacity onPress={() => { setSearchText(""); setSuggestions([]); }}>
+                <Ionicons name="close-circle" size={18} color="#999" />
+              </TouchableOpacity>
             )}
+          </View>
         </View>
 
-        {/* LISTE DES SUGGESTIONS */}
+        {/* SUGGESTIONS */}
         {suggestions.length > 0 && (
-            <View style={styles.suggestionsBox}>
-                <FlatList
-                    data={suggestions}
-                    keyExtractor={(item, i) => i.toString()}
-                    keyboardShouldPersistTaps="handled"
-                    renderItem={({ item }) => (
-                        <TouchableOpacity style={styles.suggestionItem} onPress={() => handleSelectAddress(item)}>
-                            <Ionicons name="location-outline" size={16} color={colors.primary} style={{marginRight:8}} />
-                            <Text numberOfLines={1} style={{flex:1}}>{item.properties.label}</Text>
-                        </TouchableOpacity>
-                    )}
-                />
-            </View>
-        )}
-
-        {/* Bouton GPS */}
-        {userPosition && (position[0] !== userPosition[0] || position[1] !== userPosition[1]) && (
-             <TouchableOpacity style={styles.gpsButton} onPress={resetToGPS}>
-                <Ionicons name="navigate-circle" size={24} color={colors.primary} />
-                <Text style={styles.gpsText}>Ma position</Text>
-             </TouchableOpacity>
+          <View style={styles.suggestionsBox}>
+            <FlatList
+              data={suggestions}
+              keyExtractor={(item, i) => i.toString()}
+              keyboardShouldPersistTaps="handled"
+              renderItem={({ item }) => (
+                <TouchableOpacity style={styles.suggestionItem} onPress={() => handleSelectAddress(item)}>
+                  <Ionicons name="location-outline" size={16} color={colors.primary} style={{ marginRight: 8 }} />
+                  <Text numberOfLines={1} style={{ flex: 1 }}>{item.properties.label}</Text>
+                </TouchableOpacity>
+              )}
+            />
+          </View>
         )}
       </View>
 
-      {/* CONTRÔLES RAYON */}
+      {/* CONTRÔLES RAYON (+ pour zoomer/réduire rayon, - pour dézoomer/augmenter rayon) */}
       <View style={styles.radiusControls}>
+        <TouchableOpacity
+          style={styles.controlBtn}
+          onPress={() => changeRadius(-1)}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="add" size={26} color="#333" />
+        </TouchableOpacity>
+
         <View style={styles.radiusBadge}>
-            <Text style={styles.radiusText}>{radiusKm} km</Text>
+          <Text style={styles.radiusBadgeText}>{radiusKm}</Text>
+          <Text style={styles.radiusBadgeUnit}>km</Text>
         </View>
-        <View style={styles.radiusButtons}>
-            <TouchableOpacity style={styles.controlBtn} onPress={() => changeRadius(-1)}>
-                <Text style={styles.btnText}>-</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.controlBtn} onPress={() => changeRadius(1)}>
-                <Text style={styles.btnText}>+</Text>
-            </TouchableOpacity>
-        </View>
+
+        <TouchableOpacity
+          style={styles.controlBtn}
+          onPress={() => changeRadius(1)}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="remove" size={26} color="#333" />
+        </TouchableOpacity>
       </View>
 
-      <TouchableOpacity style={styles.refreshBtn} onPress={reloadMap}>
-         <Ionicons name="refresh" size={24} color={colors.primary} />
-      </TouchableOpacity>
-
-      {/* LÉGENDE */}
-      <View style={styles.legend}>
-        <Text style={styles.legendText}>{restaurants.length} restos trouvés</Text>
-      </View>
+      {/* CARROUSEL RESTAURANTS */}
+      {selectedRestaurant && (
+        <View style={styles.restaurantCarousel}>
+          <FlatList
+            ref={carouselRef}
+            data={[selectedRestaurant]}
+            horizontal
+            keyExtractor={(item) => item.id.toString()}
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.carouselContent}
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                style={styles.restaurantCard}
+                onPress={() => onRestaurantSelect && onRestaurantSelect(item)}
+                activeOpacity={0.9}
+              >
+                <Image
+                  source={getRestaurantImage(item) || undefined}
+                  style={styles.restaurantImage}
+                />
+                <View style={styles.restaurantInfo}>
+                  <Text style={styles.restaurantName} numberOfLines={1}>{item.name}</Text>
+                  <Text style={styles.restaurantType} numberOfLines={1}>{item.cuisines || item.type}</Text>
+                  <View style={styles.restaurantMeta}>
+                    <Text style={styles.restaurantDistance}>{item.distanceKm ? `${item.distanceKm.toFixed(1)} km` : (item.distance ? `${item.distance.toFixed(1)} km` : '0.5km')}</Text>
+                  </View>
+                </View>
+                <TouchableOpacity
+                  style={styles.favoriteButton}
+                  onPress={() => toggleFavorite(item)}
+                >
+                  <Ionicons
+                    name={isFavoriteRestaurant ? "heart" : "heart-outline"}
+                    size={24}
+                    color={isFavoriteRestaurant ? "#FF6B6B" : "#999"}
+                  />
+                </TouchableOpacity>
+              </TouchableOpacity>
+            )}
+          />
+        </View>
+      )}
     </View>
   );
 };
 
 export { MapViewComponent as MapView };
 
-// --- STYLES ---
 const styles = StyleSheet.create({
-  container: { flex: 1 },
+  container: { flex: 1, backgroundColor: '#fff' },
   map: { flex: 1 },
   loaderContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
-  
+
   searchContainer: {
-    position: 'absolute', top: 50, left: 15, right: 15,
-    zIndex: 10, alignItems: 'center'
+    position: 'absolute', top: 50, left: 20, right: 20, zIndex: 10,
   },
+  searchRow: { flexDirection: 'row', gap: 10, alignItems: 'center' },
   searchBar: {
-    flexDirection: 'row', backgroundColor: 'white', borderRadius: 25,
-    elevation: 6, shadowColor: '#000', shadowOffset:{width:0, height:3}, shadowOpacity:0.2,
-    alignItems: 'center', paddingHorizontal: 15, height: 50, width: '100%'
+    flex: 1, flexDirection: 'row', backgroundColor: 'white', borderRadius: 18,
+    height: 54, alignItems: 'center', paddingHorizontal: 15,
+    elevation: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.18, shadowRadius: 10,
+    borderWidth: 1, borderColor: '#f0f0f0',
   },
-  input: { flex: 1, fontSize: 16, height: '100%' },
-  
+  input: { flex: 1, fontSize: 16, marginLeft: 12, color: '#1a1a1a', fontWeight: '500' },
+  filterButton: {
+    width: 50, height: 50, backgroundColor: 'white', borderRadius: 15,
+    justifyContent: 'center', alignItems: 'center',
+    elevation: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 8,
+  },
+
+
   suggestionsBox: {
-    width: '100%', backgroundColor: 'white', marginTop: 5, borderRadius: 10,
-    elevation: 5, maxHeight: 200, paddingVertical: 5
+    backgroundColor: 'white', marginTop: 12, borderRadius: 20,
+    maxHeight: 300, elevation: 15, overflow: 'hidden',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.2, shadowRadius: 12,
+    borderWidth: 1, borderColor: '#f0f0f0',
   },
   suggestionItem: {
-    flexDirection: 'row', alignItems: 'center',
-    padding: 12, borderBottomWidth: 1, borderBottomColor: '#f0f0f0'
+    flexDirection: 'row', alignItems: 'center', padding: 18, borderBottomWidth: 1, borderBottomColor: '#f5f5f5'
   },
-
-  gpsButton: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: 'white',
-    paddingVertical: 5, paddingHorizontal: 12, borderRadius: 20, marginTop: 8,
-    elevation: 4
-  },
-  gpsText: { fontSize: 12, fontWeight: 'bold', color: colors.primary, marginLeft: 4 },
 
   radiusControls: {
-    position: 'absolute', bottom: 140, right: 20,
-    alignItems: 'center', gap: 10,
+    position: 'absolute', bottom: 260, right: 20, alignItems: 'center', gap: 10,
+    zIndex: 100,
   },
-  radiusBadge: { backgroundColor: 'white', padding: 8, borderRadius: 20, elevation: 4 },
-  radiusText: { fontWeight: 'bold', color: colors.primary },
-  radiusButtons: { flexDirection: 'column', gap: 10 },
   controlBtn: {
-    backgroundColor: 'white', width: 40, height: 40, borderRadius: 20,
-    justifyContent: 'center', alignItems: 'center', elevation: 4,
+    width: 54, height: 54, backgroundColor: 'white', borderRadius: 27,
+    justifyContent: 'center', alignItems: 'center',
+    elevation: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2,
   },
-  btnText: { fontSize: 20, fontWeight: 'bold' },
-  
-  legend: {
-    position: 'absolute', bottom: 90, alignSelf: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    padding: 10, borderRadius: 25, elevation: 4
+  radiusBadge: {
+    backgroundColor: '#007AFF', width: 54, height: 54, borderRadius: 27,
+    justifyContent: 'center', alignItems: 'center',
+    elevation: 10, shadowColor: '#007AFF', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3,
+    borderWidth: 2, borderColor: 'white',
   },
-  legendText: { fontWeight: "bold", color: colors.text },
-  
-  refreshBtn: {
-    position: 'absolute', bottom: 140, left: 20,
-    backgroundColor: 'white', padding: 10, borderRadius: 30, elevation: 5
-  }
+  radiusBadgeText: { color: 'white', fontWeight: 'bold', fontSize: 18, lineHeight: 20 },
+  radiusBadgeUnit: { color: 'white', fontWeight: '700', fontSize: 11, marginTop: -2 },
+
+  restaurantCarousel: {
+    position: 'absolute', bottom: 90, left: 0, right: 0,
+  },
+  carouselContent: { paddingHorizontal: 20, paddingBottom: 15 },
+  restaurantCard: {
+    width: width - 40, backgroundColor: 'white', borderRadius: 20, padding: 12,
+    flexDirection: 'row', alignItems: 'center',
+    elevation: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.2, shadowRadius: 10,
+  },
+  restaurantImage: { width: 70, height: 70, borderRadius: 15, backgroundColor: '#eee' },
+  restaurantInfo: { flex: 1, marginLeft: 15 },
+  restaurantName: { fontSize: 17, fontWeight: 'bold', color: '#1a1a1a' },
+  restaurantType: { fontSize: 13, color: '#666', marginTop: 2 },
+  restaurantMeta: { flexDirection: 'row', alignItems: 'center', marginTop: 5 },
+
+
+  restaurantDistance: { fontSize: 12, color: '#888' },
+  favoriteButton: { padding: 5 },
 });
