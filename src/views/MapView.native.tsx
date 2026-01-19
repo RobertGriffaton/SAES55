@@ -71,7 +71,6 @@ export const MapViewComponent = ({ onRestaurantSelect, savedState, onSaveState }
 
   // 1. Initialisation GPS
   useEffect(() => {
-    // Si on a déjà une position restaurée, on évite de tout relancer
     if (savedState?.position && savedState?.restaurants?.length > 0) {
       setLoading(false);
       return;
@@ -140,7 +139,7 @@ export const MapViewComponent = ({ onRestaurantSelect, savedState, onSaveState }
     }
   };
 
-  // 2 bis. Sauvegarde de l'état (DEBOUNCED pour éviter les crashs de rendu parent)
+  // 2 bis. Sauvegarde de l'état
   useEffect(() => {
     const handler = setTimeout(() => {
       if (onSaveState) {
@@ -152,7 +151,7 @@ export const MapViewComponent = ({ onRestaurantSelect, savedState, onSaveState }
           restaurants
         });
       }
-    }, 1500); // Sauvegarde toutes les 1.5s max
+    }, 1500);
     return () => clearTimeout(handler);
   }, [searchText, position, radiusKm, selectedRestaurant, restaurants]);
 
@@ -164,8 +163,6 @@ export const MapViewComponent = ({ onRestaurantSelect, savedState, onSaveState }
         setSelectedRestaurant(data[0]);
       }
 
-      // Injecter les nouveaux marqueurs sans recharger la carte
-      // OPTIMISATION : On limite à 100 marqueurs et on ne passe que le strict nécessaire
       if (webViewRef.current) {
         const lightData = data.slice(0, 100).map((r: any) => ({
           id: r.id,
@@ -188,13 +185,10 @@ export const MapViewComponent = ({ onRestaurantSelect, savedState, onSaveState }
     }
   };
 
-
-
   const handleSelectAddress = (item: any) => {
     const lon = item.geometry.coordinates[0];
     const lat = item.geometry.coordinates[1];
 
-    // Bloquer la recherche auto pour éviter que les suggestions reviennent
     skipSearchRef.current = true;
     setSearchText(item.properties.label);
     setSuggestions([]);
@@ -202,13 +196,11 @@ export const MapViewComponent = ({ onRestaurantSelect, savedState, onSaveState }
     setPosition([lat, lon]);
     fetchRestaurants(lat, lon, radiusKm);
 
-    // Zoom automatique et déplacement du marqueur sur l'adresse sélectionnée
     if (webViewRef.current) {
       const script = `
         if (typeof window.map !== 'undefined') {
           window.shouldFitBounds = false;
           window.map.setView([${lat}, ${lon}], 15, { animate: true });
-          // Déplacer le marqueur bleu sur la recherche
           if (window.updateUserPos) {
             window.updateUserPos(${lat}, ${lon});
           }
@@ -227,10 +219,10 @@ export const MapViewComponent = ({ onRestaurantSelect, savedState, onSaveState }
       setRadiusKm(newRadius);
       fetchRestaurants(position[0], position[1], newRadius);
 
-      // Feedback immédiat : on zoom/dézoom la carte
       if (webViewRef.current) {
-        // Delta < 0 means "+" clicked (radius decreases -> zoom in)
-        // Delta > 0 means "-" clicked (radius increases -> zoom out)
+        // LOGIQUE CORRIGÉE :
+        // Si delta > 0 (On augmente le rayon, ex: +1), on veut voir PLUS LARGE -> Zoom OUT
+        // Si delta < 0 (On réduit le rayon, ex: -1), on veut voir PLUS PRÈS -> Zoom IN
         const script = delta < 0
           ? "if (window.map) { window.shouldFitBounds = false; window.map.zoomIn(); setTimeout(() => { window.shouldFitBounds = true; }, 3000); } true;"
           : "if (window.map) { window.shouldFitBounds = false; window.map.zoomOut(); setTimeout(() => { window.shouldFitBounds = true; }, 3000); } true;";
@@ -260,12 +252,10 @@ export const MapViewComponent = ({ onRestaurantSelect, savedState, onSaveState }
         const { latitude: lat, longitude: lon } = location.coords;
         setSearchText("");
         setSuggestions([]);
-        // 1. On met à jour les positions (recherche + réelle)
         setPosition([lat, lon]);
         setUserPosition([lat, lon]);
         fetchRestaurants(lat, lon, radiusKm);
 
-        // 2. On demande au WebView de se déplacer et de zoomer
         const script = `
           window.shouldFitBounds = false;
           if (typeof window.updateUserPos === 'function') {
@@ -283,7 +273,6 @@ export const MapViewComponent = ({ onRestaurantSelect, savedState, onSaveState }
     }
   };
 
-  // HTML DE LA CARTE LEAFLET (Statique pour éviter les rechargements)
   const mapHtml = useMemo(() => `
     <!DOCTYPE html>
     <html>
@@ -348,7 +337,6 @@ export const MapViewComponent = ({ onRestaurantSelect, savedState, onSaveState }
             attribution: '© CARTO', maxZoom: 20
           }).addTo(window.map);
 
-          // IMPORTANT: Désactiver le fitBounds automatique dès que l'utilisateur touche la carte
           window.map.on('movestart', function() {
             window.shouldFitBounds = false;
           });
@@ -412,7 +400,6 @@ export const MapViewComponent = ({ onRestaurantSelect, savedState, onSaveState }
           }
 
           window.renderMarkers = renderMarkers;
-          // Activation du fitBounds après chargement initial
           setTimeout(function() { window.shouldFitBounds = true; }, 3000);
         </script>
       </body>
@@ -446,7 +433,6 @@ export const MapViewComponent = ({ onRestaurantSelect, savedState, onSaveState }
         onMessage={handleMessage}
         javaScriptEnabled={true}
         onLoad={() => {
-          // Injection initiale des données
           if (webViewRef.current && position) {
             const lightData = restaurants.slice(0, 100).map((r: any) => ({
               id: r.id, lat: r.lat, lon: r.lon, name: r.name, cuisines: r.cuisines, type: r.type
@@ -483,7 +469,6 @@ export const MapViewComponent = ({ onRestaurantSelect, savedState, onSaveState }
           </View>
         </View>
 
-        {/* SUGGESTIONS */}
         {suggestions.length > 0 && (
           <View style={styles.suggestionsBox}>
             <FlatList
@@ -501,14 +486,14 @@ export const MapViewComponent = ({ onRestaurantSelect, savedState, onSaveState }
         )}
       </View>
 
-      {/* CONTRÔLES RAYON (+ pour zoomer/réduire rayon, - pour dézoomer/augmenter rayon) */}
+      {/* CONTRÔLES RAYON */}
       <View style={styles.radiusControls}>
         <TouchableOpacity
           style={styles.controlBtn}
-          onPress={() => changeRadius(-1)}
+          onPress={() => changeRadius(1)} // LOGIQUE CORRIGÉE : + Augmente le rayon
           activeOpacity={0.7}
         >
-          <Ionicons name="add" size={26} color="#333" />
+          <Ionicons name="add" size={24} color="#333" />
         </TouchableOpacity>
 
         <View style={styles.radiusBadge}>
@@ -518,10 +503,10 @@ export const MapViewComponent = ({ onRestaurantSelect, savedState, onSaveState }
 
         <TouchableOpacity
           style={styles.controlBtn}
-          onPress={() => changeRadius(1)}
+          onPress={() => changeRadius(-1)} // LOGIQUE CORRIGÉE : - Diminue le rayon
           activeOpacity={0.7}
         >
-          <Ionicons name="remove" size={26} color="#333" />
+          <Ionicons name="remove" size={24} color="#333" />
         </TouchableOpacity>
       </View>
 
@@ -589,12 +574,6 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: '#f0f0f0',
   },
   input: { flex: 1, fontSize: 16, marginLeft: 12, color: '#1a1a1a', fontWeight: '500' },
-  filterButton: {
-    width: 50, height: 50, backgroundColor: 'white', borderRadius: 15,
-    justifyContent: 'center', alignItems: 'center',
-    elevation: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 8,
-  },
-
 
   suggestionsBox: {
     backgroundColor: 'white', marginTop: 12, borderRadius: 20,
@@ -607,25 +586,38 @@ const styles = StyleSheet.create({
   },
 
   radiusControls: {
-    position: 'absolute', bottom: 260, right: 20, alignItems: 'center', gap: 10,
+    position: 'absolute', 
+    bottom: 200, // ABAISSÉ (était 260)
+    right: 20, 
+    alignItems: 'center', 
+    gap: 8, // Écart réduit entre les boutons
     zIndex: 100,
   },
   controlBtn: {
-    width: 54, height: 54, backgroundColor: 'white', borderRadius: 27,
+    width: 44, // TAILLE RÉDUITE (était 54)
+    height: 44, 
+    backgroundColor: 'white', 
+    borderRadius: 22, // Rond
     justifyContent: 'center', alignItems: 'center',
     elevation: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2,
   },
   radiusBadge: {
-    backgroundColor: '#007AFF', width: 54, height: 54, borderRadius: 27,
+    backgroundColor: '#007AFF', 
+    width: 44, // TAILLE RÉDUITE (était 54)
+    height: 44, 
+    borderRadius: 22,
     justifyContent: 'center', alignItems: 'center',
     elevation: 10, shadowColor: '#007AFF', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3,
     borderWidth: 2, borderColor: 'white',
   },
-  radiusBadgeText: { color: 'white', fontWeight: 'bold', fontSize: 18, lineHeight: 20 },
-  radiusBadgeUnit: { color: 'white', fontWeight: '700', fontSize: 11, marginTop: -2 },
+  radiusBadgeText: { color: 'white', fontWeight: 'bold', fontSize: 16, lineHeight: 18 }, // Font réduite
+  radiusBadgeUnit: { color: 'white', fontWeight: '700', fontSize: 10, marginTop: -2 }, // Font réduite
 
   restaurantCarousel: {
-    position: 'absolute', bottom: 90, left: 0, right: 0,
+    position: 'absolute', 
+    bottom: 70, 
+    left: 0, 
+    right: 0,
   },
   carouselContent: { paddingHorizontal: 20, paddingBottom: 15 },
   restaurantCard: {
@@ -638,8 +630,6 @@ const styles = StyleSheet.create({
   restaurantName: { fontSize: 17, fontWeight: 'bold', color: '#1a1a1a' },
   restaurantType: { fontSize: 13, color: '#666', marginTop: 2 },
   restaurantMeta: { flexDirection: 'row', alignItems: 'center', marginTop: 5 },
-
-
   restaurantDistance: { fontSize: 12, color: '#888' },
   favoriteButton: { padding: 5 },
 });
