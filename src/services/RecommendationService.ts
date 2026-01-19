@@ -76,13 +76,26 @@ let memoizedCache: {
     timestamp: number;
 } | null = null;
 
+// Flag global pour signaler qu'un refresh est nécessaire (pour mobile)
+let needsRefresh = false;
+
 /**
  * Vide le cache des recommandations pour forcer un recalcul
  * Appelé quand les préférences changent dans Settings
  */
 export const clearRecommendationCache = () => {
     memoizedCache = null;
+    needsRefresh = true;
     console.log("[Algo] Cache vidé - recalcul au prochain appel");
+};
+
+/**
+ * Vérifie si un refresh est nécessaire et réinitialise le flag
+ */
+export const checkAndResetRefreshFlag = (): boolean => {
+    const shouldRefresh = needsRefresh;
+    needsRefresh = false;
+    return shouldRefresh;
 };
 
 export const getAdaptiveRecommendations = async (
