@@ -321,70 +321,79 @@ export const RestaurantDetailView = ({ restaurant, onBack }: RestaurantDetailPro
       {/* === HIDDEN SHARE CARD (pour capture) === */}
       <View style={{ position: 'absolute', left: -9999, top: 0 }}>
         <View ref={shareCardRef} style={shareStyles.shareCard}>
-          {/* Header gradient */}
-          <View style={shareStyles.cardHeader}>
-            <View style={shareStyles.headerPattern} />
-            {imageSource ? (
-              <Image source={imageSource} style={shareStyles.cardImage} resizeMode="cover" />
-            ) : (
-              <View style={[shareStyles.cardImage, { backgroundColor: '#6B4EFF', alignItems: 'center', justifyContent: 'center' }]}>
-                <Ionicons name="restaurant" size={50} color="#fff" />
+          {/* Decorative top bar */}
+          <View style={shareStyles.topBar}>
+            <Image
+              source={require('../../assets/LogoGrayeLong.png')}
+              style={shareStyles.logoImage}
+              resizeMode="contain"
+            />
+          </View>
+
+          {/* Main content with image */}
+          <View style={shareStyles.mainContent}>
+            {/* Small image on left */}
+            <View style={shareStyles.imageContainer}>
+              {imageSource ? (
+                <Image source={imageSource} style={shareStyles.cardImage} resizeMode="cover" />
+              ) : (
+                <View style={[shareStyles.cardImage, shareStyles.placeholderImage]}>
+                  <Ionicons name="restaurant" size={32} color="#fff" />
+                </View>
+              )}
+            </View>
+
+            {/* Info on right */}
+            <View style={shareStyles.infoContainer}>
+              <Text style={shareStyles.cardTitle} numberOfLines={2}>{restaurant.name}</Text>
+
+              <View style={shareStyles.detailRow}>
+                <Ionicons name="restaurant-outline" size={14} color="#6B4EFF" />
+                <Text style={shareStyles.detailText}>{displayCuisines}</Text>
+              </View>
+
+
+              <View style={shareStyles.detailRow}>
+                <Ionicons name="location-outline" size={14} color="#FF8C00" />
+                <Text style={shareStyles.detailText}>
+                  {restaurant.meta_name_com || restaurant.city || 'Île-de-France'}
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Tags */}
+          <View style={shareStyles.tagsContainer}>
+            {(restaurant.vegetarian === 1 || restaurant.vegetarian === "yes") && (
+              <View style={[shareStyles.tag, shareStyles.tagGreen]}>
+                <Ionicons name="leaf" size={12} color="#15803D" />
+                <Text style={shareStyles.tagTextGreen}>Végé</Text>
               </View>
             )}
-            <View style={shareStyles.headerOverlay} />
-            <View style={shareStyles.matchBadge}>
-              <Text style={shareStyles.matchText}>{matchScore}%</Text>
-              <Text style={shareStyles.matchLabel}>match</Text>
-            </View>
+            {(restaurant.takeaway === "yes" || restaurant.takeaway === 1) && (
+              <View style={[shareStyles.tag, shareStyles.tagOrange]}>
+                <Ionicons name="bag-handle" size={12} color="#C2410C" />
+                <Text style={shareStyles.tagTextOrange}>À emporter</Text>
+              </View>
+            )}
+            {restaurant.wheelchair === "yes" && (
+              <View style={[shareStyles.tag, shareStyles.tagGray]}>
+                <Ionicons name="accessibility" size={12} color="#4B5563" />
+                <Text style={shareStyles.tagTextGray}>PMR</Text>
+              </View>
+            )}
           </View>
 
-          {/* Content */}
-          <View style={shareStyles.cardContent}>
-            <Text style={shareStyles.cardTitle} numberOfLines={2}>{restaurant.name}</Text>
-
-            <View style={shareStyles.infoRow}>
-              <View style={shareStyles.tag}>
-                <Ionicons name="restaurant" size={12} color="#6B4EFF" />
-                <Text style={shareStyles.tagText}>{displayCuisines}</Text>
-              </View>
-              {restaurant.meta_name_com && (
-                <View style={shareStyles.tag}>
-                  <Ionicons name="location" size={12} color="#FF8C00" />
-                  <Text style={shareStyles.tagText}>{restaurant.meta_name_com}</Text>
-                </View>
-              )}
-            </View>
-
-            {/* Tags dynamiques */}
-            <View style={shareStyles.tagsRow}>
-              {(restaurant.vegetarian === 1 || restaurant.vegetarian === "yes") && (
-                <View style={shareStyles.miniTag}>
-                  <Ionicons name="leaf" size={10} color="#15803D" />
-                  <Text style={shareStyles.miniTagText}>Végé</Text>
-                </View>
-              )}
-              {(restaurant.takeaway === "yes" || restaurant.takeaway === 1) && (
-                <View style={shareStyles.miniTag}>
-                  <Ionicons name="bag-handle" size={10} color="#C2410C" />
-                  <Text style={shareStyles.miniTagText}>À emporter</Text>
-                </View>
-              )}
-            </View>
-
-            {/* CTA */}
+          {/* CTA */}
+          <View style={shareStyles.ctaContainer}>
             <View style={shareStyles.cta}>
-              <Text style={shareStyles.ctaText}>Teste ce resto avec moi ! 🍽️</Text>
+              <Text style={shareStyles.ctaText}>Viens tester avec moi ! 🍽️</Text>
             </View>
           </View>
 
-          {/* Footer Graye */}
+          {/* Footer */}
           <View style={shareStyles.footer}>
-            <View style={shareStyles.footerContent}>
-              <View style={shareStyles.logo}>
-                <Text style={shareStyles.logoText}>G</Text>
-              </View>
-              <Text style={shareStyles.footerText}>Découvert sur Graye</Text>
-            </View>
+            <Text style={shareStyles.footerText}>Découvert sur l'app Graye</Text>
             <View style={shareStyles.footerDots}>
               <View style={[shareStyles.dot, { backgroundColor: '#6B4EFF' }]} />
               <View style={[shareStyles.dot, { backgroundColor: '#FF8C00' }]} />
@@ -400,124 +409,138 @@ export const RestaurantDetailView = ({ restaurant, onBack }: RestaurantDetailPro
 // --- STYLES SHARE CARD ---
 const shareStyles = StyleSheet.create({
   shareCard: {
-    width: 360,
+    width: 320,
     backgroundColor: '#fff',
-    borderRadius: 24,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.15,
-    shadowRadius: 20,
-    elevation: 10,
-  },
-  cardHeader: {
-    height: 180,
-    position: 'relative',
+    borderRadius: 20,
     overflow: 'hidden',
   },
-  headerPattern: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+  topBar: {
     backgroundColor: '#6B4EFF',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+  },
+  logoImage: {
+    height: 24,
+    width: 100,
+  },
+  topBarInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  logo: {
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  logoText: {
+    fontSize: 14,
+    fontWeight: '900',
+    color: '#6B4EFF',
+  },
+  brandText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#fff',
+    letterSpacing: 2,
+  },
+  mainContent: {
+    flexDirection: 'row',
+    padding: 16,
+    gap: 14,
+  },
+  imageContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 12,
+    overflow: 'hidden',
   },
   cardImage: {
     width: '100%',
     height: '100%',
   },
-  headerOverlay: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 80,
-    backgroundColor: 'rgba(0,0,0,0.3)',
-  },
-  matchBadge: {
-    position: 'absolute',
-    top: 16,
-    right: 16,
-    backgroundColor: '#fff',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 16,
+  placeholderImage: {
+    backgroundColor: '#6B4EFF',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    justifyContent: 'center',
   },
-  matchText: {
-    fontSize: 20,
-    fontWeight: '900',
-    color: '#6B4EFF',
-  },
-  matchLabel: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: '#9CA3AF',
-    textTransform: 'uppercase',
-  },
-  cardContent: {
-    padding: 20,
+  infoContainer: {
+    flex: 1,
+    justifyContent: 'center',
   },
   cardTitle: {
-    fontSize: 24,
-    fontWeight: '900',
+    fontSize: 16,
+    fontWeight: '800',
     color: '#111827',
-    marginBottom: 12,
+    marginBottom: 8,
   },
-  infoRow: {
+  detailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+  },
+  detailText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#6B7280',
+    flex: 1,
+  },
+  tagsContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 12,
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingBottom: 12,
   },
   tag: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#F3F4F6',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-  },
-  tagText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#374151',
-  },
-  tagsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-    marginBottom: 16,
-  },
-  miniTag: {
-    flexDirection: 'row',
-    alignItems: 'center',
     gap: 4,
-    backgroundColor: '#F0FDF4',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
     borderRadius: 8,
   },
-  miniTagText: {
-    fontSize: 10,
+  tagGreen: {
+    backgroundColor: '#F0FDF4',
+  },
+  tagTextGreen: {
+    fontSize: 11,
     fontWeight: '700',
     color: '#15803D',
   },
+  tagOrange: {
+    backgroundColor: '#FFF7ED',
+  },
+  tagTextOrange: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#C2410C',
+  },
+  tagGray: {
+    backgroundColor: '#F3F4F6',
+  },
+  tagTextGray: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#4B5563',
+  },
+  ctaContainer: {
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+  },
   cta: {
     backgroundColor: '#FF8C00',
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    borderRadius: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
     alignItems: 'center',
   },
   ctaText: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '800',
     color: '#fff',
   },
@@ -525,30 +548,12 @@ const shareStyles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     backgroundColor: '#1F2937',
   },
-  footerContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  logo: {
-    width: 28,
-    height: 28,
-    borderRadius: 8,
-    backgroundColor: '#6B4EFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  logoText: {
-    fontSize: 16,
-    fontWeight: '900',
-    color: '#fff',
-  },
   footerText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
     color: '#9CA3AF',
   },
@@ -557,9 +562,9 @@ const shareStyles = StyleSheet.create({
     gap: 4,
   },
   dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
 });
 
