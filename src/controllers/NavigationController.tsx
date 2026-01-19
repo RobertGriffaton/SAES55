@@ -29,7 +29,7 @@ console.log("---------------------");
 
 export const NavigationController = () => {
   const [showOnboarding, setShowOnboarding] = useState(true);
-  const [activeTab, setActiveTab] = useState<TabType>("map");
+  const [activeTab, setActiveTab] = useState<TabType>("search");
   const [selectedRestaurant, setSelectedRestaurant] = useState<any | null>(null);
 
   // --- NOUVEAUX : Stockages des sessions ---
