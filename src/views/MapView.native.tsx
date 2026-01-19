@@ -170,7 +170,8 @@ export const MapViewComponent = ({ onRestaurantSelect, savedState, onSaveState }
           lon: r.lon,
           name: r.name,
           cuisines: r.cuisines,
-          type: r.type
+          type: r.type,
+          distanceKm: r.distanceKm
         }));
 
         webViewRef.current.injectJavaScript(`
@@ -435,7 +436,7 @@ export const MapViewComponent = ({ onRestaurantSelect, savedState, onSaveState }
         onLoad={() => {
           if (webViewRef.current && position) {
             const lightData = restaurants.slice(0, 100).map((r: any) => ({
-              id: r.id, lat: r.lat, lon: r.lon, name: r.name, cuisines: r.cuisines, type: r.type
+              id: r.id, lat: r.lat, lon: r.lon, name: r.name, cuisines: r.cuisines, type: r.type, distanceKm: r.distanceKm
             }));
             const script = `
               if (window.updateUserPos) window.updateUserPos(${position[0]}, ${position[1]}, 15);
@@ -534,7 +535,13 @@ export const MapViewComponent = ({ onRestaurantSelect, savedState, onSaveState }
                   <Text style={styles.restaurantName} numberOfLines={1}>{item.name}</Text>
                   <Text style={styles.restaurantType} numberOfLines={1}>{item.cuisines || item.type}</Text>
                   <View style={styles.restaurantMeta}>
-                    <Text style={styles.restaurantDistance}>{item.distanceKm ? `${item.distanceKm.toFixed(1)} km` : (item.distance ? `${item.distance.toFixed(1)} km` : '0.5km')}</Text>
+                    <Text style={styles.restaurantDistance}>
+                      {(item.distanceKm !== undefined && item.distanceKm !== null)
+                        ? `${item.distanceKm.toFixed(1)} km`
+                        : (item.distance !== undefined && item.distance !== null
+                          ? `${item.distance.toFixed(1)} km`
+                          : '0.5 km')}
+                    </Text>
                   </View>
                 </View>
                 <TouchableOpacity
@@ -586,25 +593,25 @@ const styles = StyleSheet.create({
   },
 
   radiusControls: {
-    position: 'absolute', 
+    position: 'absolute',
     bottom: 200, // ABAISSÉ (était 260)
-    right: 20, 
-    alignItems: 'center', 
+    right: 20,
+    alignItems: 'center',
     gap: 8, // Écart réduit entre les boutons
     zIndex: 100,
   },
   controlBtn: {
     width: 44, // TAILLE RÉDUITE (était 54)
-    height: 44, 
-    backgroundColor: 'white', 
+    height: 44,
+    backgroundColor: 'white',
     borderRadius: 22, // Rond
     justifyContent: 'center', alignItems: 'center',
     elevation: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2,
   },
   radiusBadge: {
-    backgroundColor: '#007AFF', 
+    backgroundColor: '#007AFF',
     width: 44, // TAILLE RÉDUITE (était 54)
-    height: 44, 
+    height: 44,
     borderRadius: 22,
     justifyContent: 'center', alignItems: 'center',
     elevation: 10, shadowColor: '#007AFF', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3,
@@ -614,9 +621,9 @@ const styles = StyleSheet.create({
   radiusBadgeUnit: { color: 'white', fontWeight: '700', fontSize: 10, marginTop: -2 }, // Font réduite
 
   restaurantCarousel: {
-    position: 'absolute', 
-    bottom: 70, 
-    left: 0, 
+    position: 'absolute',
+    bottom: 70,
+    left: 0,
     right: 0,
   },
   carouselContent: { paddingHorizontal: 20, paddingBottom: 15 },
