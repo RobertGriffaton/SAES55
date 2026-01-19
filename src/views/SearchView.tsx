@@ -285,21 +285,18 @@ export const SearchView = ({ onRestaurantSelect, savedState, onSaveState, isActi
   }, [selectedCategories, takeawayOnly, onSiteOnly, useLocationFilter, radiusKm, userLocation]);
 
   // --- GESTION DU SCROLL POUR CACHER LE HEADER ---
-  const handleScroll = useCallback(() => {
-    if (!isScrolling) {
+  const lastScrollY = useRef(0);
+
+  const handleScroll = useCallback((event: any) => {
+    const currentY = event.nativeEvent.contentOffset.y;
+
+    // Simple: caché dès qu'on scroll, visible uniquement tout en haut
+    if (currentY > 20) {
       setIsScrolling(true);
-    }
-
-    // Réinitialiser le timeout
-    if (scrollTimeoutRef.current) {
-      clearTimeout(scrollTimeoutRef.current);
-    }
-
-    // Après 400ms sans scroll, revenir à la normale
-    scrollTimeoutRef.current = setTimeout(() => {
+    } else {
       setIsScrolling(false);
-    }, 400);
-  }, [isScrolling]);
+    }
+  }, []);
 
   // Cleanup du timeout
   useEffect(() => {
@@ -854,7 +851,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     paddingHorizontal: 16,
     height: 52,
-    marginBottom: 16,
+    marginBottom: 10,
     borderWidth: 2, // Bordure visible
     borderColor: colors.primary || "#6B4EFF", // Couleur violette
   },
@@ -876,7 +873,7 @@ const styles = StyleSheet.create({
 
   // Categories Pills
   categoriesContainer: {
-    marginBottom: 16,
+    marginBottom: 10,
   },
   categoriesScroll: {
     gap: 12,
