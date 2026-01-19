@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
+  Alert,
   Image,
   Linking,
   Platform,
@@ -11,6 +12,8 @@ import {
   useWindowDimensions,
   View
 } from "react-native";
+import { captureRef } from "react-native-view-shot";
+import * as Sharing from "expo-sharing";
 import { getActiveProfile } from "../controllers/ProfileController";
 import { addFavorite, isFavorite as checkIsFavorite, logInteraction, removeFavorite } from "../services/Database";
 
@@ -26,6 +29,7 @@ export const RestaurantDetailView = ({ restaurant, onBack }: RestaurantDetailPro
   const isLargeScreen = width > 768;
   const [isFavorite, setIsFavorite] = useState(false);
   const [userId, setUserId] = useState<string>('default');
+  const shareCardRef = useRef<View>(null);
 
   useEffect(() => {
     const init = async () => {
@@ -90,6 +94,28 @@ export const RestaurantDetailView = ({ restaurant, onBack }: RestaurantDetailPro
     }
   };
 
+  // Fonction de partage du restaurant
+  const handleShareRestaurant = async () => {
+    try {
+      if (shareCardRef.current) {
+        const uri = await captureRef(shareCardRef, {
+          format: 'png',
+          quality: 0.95,
+          result: 'tmpfile'
+        });
+
+        await Sharing.shareAsync(uri, {
+          mimeType: 'image/png',
+          dialogTitle: `Découvre ${restaurant.name} !`,
+          UTI: 'public.png'
+        });
+      }
+    } catch (error) {
+      console.error("Erreur partage restaurant:", error);
+      Alert.alert('Erreur', 'Impossible de partager le restaurant');
+    }
+  };
+
   // Calcul distance formatée
   const formattedDistance = useMemo(() => {
     if (restaurant.distance) {
@@ -128,7 +154,7 @@ export const RestaurantDetailView = ({ restaurant, onBack }: RestaurantDetailPro
             </TouchableOpacity>
 
             <View style={styles.headerBtnGroup}>
-              <TouchableOpacity style={styles.headerBtn} activeOpacity={0.8}>
+              <TouchableOpacity style={styles.headerBtn} onPress={handleShareRestaurant} activeOpacity={0.8}>
                 <Ionicons name="share-social" size={20} color="#fff" />
               </TouchableOpacity>
               <TouchableOpacity style={styles.headerBtn} onPress={toggleFavorite} activeOpacity={0.8}>
@@ -291,9 +317,256 @@ export const RestaurantDetailView = ({ restaurant, onBack }: RestaurantDetailPro
           </View>
         </View>
       </View>
+
+      {/* === HIDDEN SHARE CARD (pour capture) === */}
+      <View style={{ position: 'absolute', left: -9999, top: 0 }}>
+        <View ref={shareCardRef} style={shareStyles.shareCard}>
+          {/* Decorative top bar */}
+          <View style={shareStyles.topBar}>
+            <Image
+              source={require('../../assets/LogoGrayeLong.png')}
+              style={shareStyles.logoImage}
+              resizeMode="contain"
+            />
+          </View>
+
+          {/* Main content with image */}
+          <View style={shareStyles.mainContent}>
+            {/* Small image on left */}
+            <View style={shareStyles.imageContainer}>
+              {imageSource ? (
+                <Image source={imageSource} style={shareStyles.cardImage} resizeMode="cover" />
+              ) : (
+                <View style={[shareStyles.cardImage, shareStyles.placeholderImage]}>
+                  <Ionicons name="restaurant" size={32} color="#fff" />
+                </View>
+              )}
+            </View>
+
+            {/* Info on right */}
+            <View style={shareStyles.infoContainer}>
+              <Text style={shareStyles.cardTitle} numberOfLines={2}>{restaurant.name}</Text>
+
+              <View style={shareStyles.detailRow}>
+                <Ionicons name="restaurant-outline" size={14} color="#6B4EFF" />
+                <Text style={shareStyles.detailText}>{displayCuisines}</Text>
+              </View>
+
+
+              <View style={shareStyles.detailRow}>
+                <Ionicons name="location-outline" size={14} color="#FF8C00" />
+                <Text style={shareStyles.detailText}>
+                  {restaurant.meta_name_com || restaurant.city || 'Île-de-France'}
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Tags */}
+          <View style={shareStyles.tagsContainer}>
+            {(restaurant.vegetarian === 1 || restaurant.vegetarian === "yes") && (
+              <View style={[shareStyles.tag, shareStyles.tagGreen]}>
+                <Ionicons name="leaf" size={12} color="#15803D" />
+                <Text style={shareStyles.tagTextGreen}>Végé</Text>
+              </View>
+            )}
+            {(restaurant.takeaway === "yes" || restaurant.takeaway === 1) && (
+              <View style={[shareStyles.tag, shareStyles.tagOrange]}>
+                <Ionicons name="bag-handle" size={12} color="#C2410C" />
+                <Text style={shareStyles.tagTextOrange}>À emporter</Text>
+              </View>
+            )}
+            {restaurant.wheelchair === "yes" && (
+              <View style={[shareStyles.tag, shareStyles.tagGray]}>
+                <Ionicons name="accessibility" size={12} color="#4B5563" />
+                <Text style={shareStyles.tagTextGray}>PMR</Text>
+              </View>
+            )}
+          </View>
+
+          {/* CTA */}
+          <View style={shareStyles.ctaContainer}>
+            <View style={shareStyles.cta}>
+              <Text style={shareStyles.ctaText}>Viens tester avec moi ! 🍽️</Text>
+            </View>
+          </View>
+
+          {/* Footer */}
+          <View style={shareStyles.footer}>
+            <Text style={shareStyles.footerText}>Découvert sur l'app Graye</Text>
+            <View style={shareStyles.footerDots}>
+              <View style={[shareStyles.dot, { backgroundColor: '#6B4EFF' }]} />
+              <View style={[shareStyles.dot, { backgroundColor: '#FF8C00' }]} />
+              <View style={[shareStyles.dot, { backgroundColor: '#FBBF24' }]} />
+            </View>
+          </View>
+        </View>
+      </View>
     </View>
   );
 };
+
+// --- STYLES SHARE CARD ---
+const shareStyles = StyleSheet.create({
+  shareCard: {
+    width: 320,
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    overflow: 'hidden',
+  },
+  topBar: {
+    backgroundColor: '#6B4EFF',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+  },
+  logoImage: {
+    height: 24,
+    width: 100,
+  },
+  topBarInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  logo: {
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  logoText: {
+    fontSize: 14,
+    fontWeight: '900',
+    color: '#6B4EFF',
+  },
+  brandText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#fff',
+    letterSpacing: 2,
+  },
+  mainContent: {
+    flexDirection: 'row',
+    padding: 16,
+    gap: 14,
+  },
+  imageContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  cardImage: {
+    width: '100%',
+    height: '100%',
+  },
+  placeholderImage: {
+    backgroundColor: '#6B4EFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  infoContainer: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  cardTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#111827',
+    marginBottom: 8,
+  },
+  detailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+  },
+  detailText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#6B7280',
+    flex: 1,
+  },
+  tagsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+  },
+  tag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+  },
+  tagGreen: {
+    backgroundColor: '#F0FDF4',
+  },
+  tagTextGreen: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#15803D',
+  },
+  tagOrange: {
+    backgroundColor: '#FFF7ED',
+  },
+  tagTextOrange: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#C2410C',
+  },
+  tagGray: {
+    backgroundColor: '#F3F4F6',
+  },
+  tagTextGray: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#4B5563',
+  },
+  ctaContainer: {
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+  },
+  cta: {
+    backgroundColor: '#FF8C00',
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  ctaText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#fff',
+  },
+  footer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#1F2937',
+  },
+  footerText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#9CA3AF',
+  },
+  footerDots: {
+    flexDirection: 'row',
+    gap: 4,
+  },
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+});
 
 // --- STYLES ---
 const styles = StyleSheet.create({
