@@ -2,18 +2,18 @@ import { FontAwesome, Ionicons } from '@expo/vector-icons';
 import * as Sharing from 'expo-sharing';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  Animated,
-  Dimensions,
-  Image,
-  PanResponder,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View
+    ActivityIndicator,
+    Alert,
+    Animated,
+    Dimensions,
+    Image,
+    PanResponder,
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import { captureRef } from 'react-native-view-shot';
 import { getActiveProfile } from '../controllers/ProfileController';
@@ -140,11 +140,7 @@ const SwipeableCard = ({
                 <Ionicons name="restaurant" size={32} color="#9CA3AF" />
               </View>
             )}
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>
-                {restaurant.score ? `${Math.round(restaurant.score)}%` : '90%'}
-              </Text>
-            </View>
+
             {isValidated && (
               <View style={styles.validatedBadge}>
                 <Ionicons name="checkmark" size={12} color="#fff" />
@@ -403,18 +399,7 @@ export default function FavoritesView({ onRestaurantSelect }: FavoritesViewProps
               />
             ))}
 
-            {/* AI Suggestion - seulement dans À tester */}
-            {activeTab === 'toTest' && favorites.length > 0 && (
-              <View style={styles.aiSuggestion}>
-                <View style={styles.aiIcon}>
-                  <FontAwesome name="magic" size={16} color="#6B4EFF" />
-                </View>
-                <Text style={styles.aiText}>En basant sur tes favoris, l'IA te suggère :</Text>
-                <TouchableOpacity>
-                  <Text style={styles.aiLink}>Voir les recommandations +</Text>
-                </TouchableOpacity>
-              </View>
-            )}
+
           </>
         )}
 
@@ -716,22 +701,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#F3F4F6',
   },
-  badge: {
-    position: 'absolute',
-    bottom: 4,
-    left: 4,
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-    borderRadius: 4,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.5)',
-  },
-  badgeText: {
-    fontSize: 10,
-    fontWeight: '900',
-    color: '#6B4EFF',
-  },
+
   validatedBadge: {
     position: 'absolute',
     top: 4,
@@ -816,40 +786,5 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
 
-  // AI Suggestion
-  aiSuggestion: {
-    marginTop: 32,
-    padding: 16,
-    backgroundColor: 'rgba(107, 78, 255, 0.05)',
-    borderRadius: 24,
-    borderWidth: 2,
-    borderColor: 'rgba(107, 78, 255, 0.3)',
-    borderStyle: 'dashed',
-    alignItems: 'center',
-  },
-  aiIcon: {
-    width: 40,
-    height: 40,
-    backgroundColor: 'white',
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-  aiText: {
-    fontSize: 12,
-    color: '#6B7280',
-    fontWeight: '500',
-    marginBottom: 12,
-  },
-  aiLink: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#6B4EFF',
-  },
+
 });
