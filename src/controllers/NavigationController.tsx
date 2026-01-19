@@ -71,6 +71,7 @@ export const NavigationController = () => {
   const handleOnboardingDone = async () => {
     await setOnboardingDone();
     setShowOnboarding(false);
+    setActiveTab("search"); // Aller directement sur l'accueil après l'onboarding
   };
 
   const handleSelectRestaurant = (resto: any) => {
