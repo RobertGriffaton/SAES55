@@ -42,7 +42,22 @@ const SwipeableCard = ({
 
   const panResponder = useRef(
     PanResponder.create({
-      onMoveShouldSetPanResponder: (_, gestureState) => Math.abs(gestureState.dx) > 5,
+      // iOS fix: capture gesture immédiatement si mouvement horizontal
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        // Capturer seulement si mouvement horizontal > vertical (évite conflit scroll)
+        return Math.abs(gestureState.dx) > Math.abs(gestureState.dy) && Math.abs(gestureState.dx) > 10;
+      },
+      onMoveShouldSetPanResponderCapture: (_, gestureState) => {
+        // iOS: forcer la capture si swipe horizontal clair
+        return Math.abs(gestureState.dx) > Math.abs(gestureState.dy) && Math.abs(gestureState.dx) > 15;
+      },
+      onPanResponderGrant: () => {
+        // Arrêter toute animation en cours
+        translateX.stopAnimation();
+        translateX.setOffset(0);
+        translateX.setValue(0);
+      },
       onPanResponderMove: (_, gestureState) => {
         // Seulement swipe gauche
         if (gestureState.dx < 0) {
@@ -50,9 +65,10 @@ const SwipeableCard = ({
         }
       },
       onPanResponderRelease: (_, gestureState) => {
+        translateX.flattenOffset();
         // Validation par distance OU par vélocité (pour les swipes rapides)
-        const shouldValidate = gestureState.dx < SWIPE_THRESHOLD || gestureState.vx < -0.5;
-        
+        const shouldValidate = gestureState.dx < SWIPE_THRESHOLD || gestureState.vx < -0.3;
+
         if (shouldValidate) {
           // Swipe validé - animer et callback
           Animated.parallel([
@@ -74,9 +90,18 @@ const SwipeableCard = ({
           Animated.spring(translateX, {
             toValue: 0,
             useNativeDriver: true,
-            friction: 5,
+            friction: 8,
+            tension: 40,
           }).start();
         }
+      },
+      onPanResponderTerminate: () => {
+        // Si le geste est interrompu, revenir à la position initiale
+        Animated.spring(translateX, {
+          toValue: 0,
+          useNativeDriver: true,
+          friction: 8,
+        }).start();
       },
     })
   ).current;
@@ -269,7 +294,7 @@ export default function FavoritesView({ onRestaurantSelect }: FavoritesViewProps
 
     const city = restaurant.city || restaurant.meta_name_com || '';
     const distance = restaurant.distanceKm ? `${restaurant.distanceKm.toFixed(1)}km` : '';
-    
+
     return [displayType, city, distance].filter(Boolean).join(' • ');
   };
 
@@ -291,7 +316,7 @@ export default function FavoritesView({ onRestaurantSelect }: FavoritesViewProps
         <View style={styles.titleRow}>
           <Text style={styles.title}>Graye List</Text>
           {(favorites.length > 0 || validatedFavorites.length > 0) && (
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.shareButton}
               onPress={handleShareImage}
               activeOpacity={0.7}
@@ -404,17 +429,17 @@ export default function FavoritesView({ onRestaurantSelect }: FavoritesViewProps
             {[...favorites, ...validatedFavorites].slice(0, 8).map((restaurant, index) => (
               <View key={`share-${restaurant.id || index}`} style={styles.shareItem}>
                 <View style={styles.shareImageContainer}>
-                   {getRestaurantImage(restaurant) ? (
+                  {getRestaurantImage(restaurant) ? (
                     <Image source={getRestaurantImage(restaurant) as any} style={styles.shareImage} resizeMode="cover" />
                   ) : (
                     <View style={[styles.shareImage, { backgroundColor: '#ddd' }]} />
                   )}
                 </View>
                 <View style={styles.shareInfo}>
-                   <Text style={styles.shareName} numberOfLines={1}>{restaurant.name}</Text>
-                   <Text style={styles.shareMeta}>
+                  <Text style={styles.shareName} numberOfLines={1}>{restaurant.name}</Text>
+                  <Text style={styles.shareMeta}>
                     {formatInfo(restaurant)}
-                   </Text>
+                  </Text>
                 </View>
                 {(restaurant.score || 90) > 85 && (
                   <Text style={{ fontSize: 20 }}>🔥</Text>
@@ -477,7 +502,7 @@ const styles = StyleSheet.create({
   hiddenContainer: {
     position: 'absolute',
     top: 0,
-    left: -10000, 
+    left: -10000,
     width: 375, // Largeur fixe type smartphone
     backgroundColor: '#fff',
   },
