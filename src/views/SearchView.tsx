@@ -171,6 +171,45 @@ export const SearchView = ({ onRestaurantSelect, savedState, onSaveState, isActi
         setProfileName(profile.name);
       }
     })();
+
+    // Auto-détection de la localisation si déjà autorisée
+    (async () => {
+      try {
+        if (Platform.OS === "web") {
+          // Sur web, on vérifie si la permission est déjà accordée
+          if (navigator.permissions) {
+            const result = await navigator.permissions.query({ name: "geolocation" as PermissionName });
+            if (result.state === "granted" && !userLocation) {
+              // Permission déjà accordée, obtenir la position
+              navigator.geolocation.getCurrentPosition(
+                async (pos) => {
+                  const lat = pos.coords.latitude;
+                  const lon = pos.coords.longitude;
+                  setUserLocation({ lat, lon });
+                  const cityName = await getCityName(lat, lon);
+                  setLocationName(cityName);
+                },
+                () => { } // Ignorer les erreurs silencieusement
+              );
+            }
+          }
+        } else {
+          // Sur mobile, on vérifie si la permission est accordée sans la demander
+          const { status } = await Location.getForegroundPermissionsAsync();
+          if (status === "granted" && !userLocation) {
+            const loc = await Location.getCurrentPositionAsync({});
+            const lat = loc.coords.latitude;
+            const lon = loc.coords.longitude;
+            setUserLocation({ lat, lon });
+            const cityName = await getCityName(lat, lon);
+            setLocationName(cityName);
+          }
+        }
+      } catch (e) {
+        // Ignorer les erreurs silencieusement
+        console.log("Auto-location check failed:", e);
+      }
+    })();
   }, []);
 
   // --- AUTO-REFRESH AU RETOUR SUR L'ACCUEIL ---
