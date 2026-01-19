@@ -230,10 +230,15 @@ export const SettingsView = () => {
 
     await updateProfile(activeProfile.id, { preferences: newPrefs });
 
-    // Vider le cache de l'algo pour que les nouvelles préf recalculent les recommandations
-    clearRecommendationCache();
+    // Vider le cache de l'algo ET réinitialiser les interactions
+    // Cela permet aux nouveaux restaurants de ne pas être dominés par l'historique
+    await clearRecommendationCache();
 
-    Alert.alert("Succès", "Vos préférences ont été enregistrées !\nLes recommandations seront mises à jour.");
+    Alert.alert(
+      "Succès",
+      "Vos préférences ont été enregistrées !\n\n" +
+      "L'historique de vos interactions a été réinitialisé pour permettre la découverte de nouveaux restaurants correspondant à vos nouveaux goûts."
+    );
     loadData();
   };
 
