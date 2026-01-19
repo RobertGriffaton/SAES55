@@ -155,6 +155,18 @@ export const MapViewComponent = ({ onRestaurantSelect, savedState, onSaveState }
     return () => clearTimeout(handler);
   }, [searchText, position, radiusKm, selectedRestaurant, restaurants]);
 
+  // 2 ter. Synchronisation du marqueur sélectionné sur la carte
+  useEffect(() => {
+    if (webViewRef.current && selectedRestaurant) {
+      webViewRef.current.injectJavaScript(`
+        if (typeof window.setSelectedMarkerId === 'function') {
+          window.setSelectedMarkerId(${selectedRestaurant.id});
+        }
+        true;
+      `);
+    }
+  }, [selectedRestaurant]);
+
   const fetchRestaurants = async (lat: number, lon: number, rad: number) => {
     try {
       const data = await getRestaurantsNearby(lat, lon, rad);
@@ -176,7 +188,7 @@ export const MapViewComponent = ({ onRestaurantSelect, savedState, onSaveState }
 
         webViewRef.current.injectJavaScript(`
           if (typeof renderMarkers === 'function') {
-            renderMarkers(${JSON.stringify(lightData)});
+            renderMarkers(${JSON.stringify(lightData)}, ${selectedRestaurant?.id || 'null'});
           }
           true;
         `);
@@ -294,6 +306,14 @@ export const MapViewComponent = ({ onRestaurantSelect, savedState, onSaveState }
             border: 3px solid white;
             box-shadow: 0 3px 10px rgba(0,0,0,0.3);
             font-size: 18px;
+            transition: all 0.3s ease;
+          }
+
+          .selected-marker {
+            border: 4px solid #FFD700 !important;
+            transform: scale(1.35);
+            z-index: 999;
+            box-shadow: 0 0 15px rgba(255, 215, 0, 0.6);
           }
 
           .user-marker {
@@ -342,6 +362,9 @@ export const MapViewComponent = ({ onRestaurantSelect, savedState, onSaveState }
             window.shouldFitBounds = false;
           });
 
+          var currentRestaurants = [];
+          var currentSelectedId = null;
+
           var userMarker = L.marker([48.85, 2.35], {
             icon: L.divIcon({
               className: 'custom-div-icon',
@@ -360,8 +383,16 @@ export const MapViewComponent = ({ onRestaurantSelect, savedState, onSaveState }
 
           var markersLayer = L.layerGroup().addTo(window.map);
 
-          function renderMarkers(restos) {
-            if (!restos) return;
+          window.setSelectedMarkerId = function(id) {
+            currentSelectedId = id;
+            renderMarkers(currentRestaurants, id);
+          };
+
+          function renderMarkers(restos, selectedId) {
+            if (restos) currentRestaurants = restos;
+            var restosToRender = currentRestaurants;
+            if (selectedId !== undefined) currentSelectedId = selectedId;
+            
             markersLayer.clearLayers();
             var group = L.featureGroup();
             group.addLayer(userMarker);
@@ -375,11 +406,15 @@ export const MapViewComponent = ({ onRestaurantSelect, savedState, onSaveState }
               else if (cuisine.includes('pizza')) { color = '#FFA500'; icon = '🍕'; }
               else if (cuisine.includes('sushi') || cuisine.includes('asian')) { color = '#FF69B4'; icon = '🍱'; }
               
+              var isSelected = r.id == currentSelectedId;
+              var markerClass = isSelected ? 'custom-marker selected-marker' : 'custom-marker';
+
               var m = L.marker([r.lat, r.lon], {
                 icon: L.divIcon({
                   className: 'custom-div-icon',
-                  html: '<div class="custom-marker" style="background: ' + color + '">' + icon + '</div>',
-                  iconSize: [36, 36], iconAnchor: [18, 18]
+                  html: '<div class="' + markerClass + '" style="background: ' + color + '">' + icon + '</div>',
+                  iconSize: isSelected ? [48, 48] : [36, 36], 
+                  iconAnchor: isSelected ? [24, 24] : [18, 18]
                 })
               });
 
@@ -409,9 +444,23 @@ export const MapViewComponent = ({ onRestaurantSelect, savedState, onSaveState }
 
   const handleMessage = (event: any) => {
     try {
-      const r = JSON.parse(event.nativeEvent.data);
-      setSelectedRestaurant(r);
-    } catch (e) { }
+      const data = JSON.parse(event.nativeEvent.data);
+      if (data && data.id) {
+        // IMPORTANT: On cherche l'objet COMPLET dans notre state local
+        // car le marqueur WebView ne contient qu'une version allégée.
+        const fullRestaurant = restaurants.find(r => r.id === data.id);
+        if (fullRestaurant) {
+          setSelectedRestaurant(fullRestaurant);
+
+          // Faire défiler le carrousel vers l'item sélectionné
+          if (carouselRef.current) {
+            carouselRef.current.scrollToOffset({ offset: 0, animated: true });
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("Erreur message WebView:", e);
+    }
   };
 
   if (loading || !position) {
@@ -440,7 +489,7 @@ export const MapViewComponent = ({ onRestaurantSelect, savedState, onSaveState }
             }));
             const script = `
               if (window.updateUserPos) window.updateUserPos(${position[0]}, ${position[1]}, 15);
-              if (window.renderMarkers) window.renderMarkers(${JSON.stringify(lightData)});
+              if (window.renderMarkers) window.renderMarkers(${JSON.stringify(lightData)}, ${selectedRestaurant?.id || 'null'});
               true;
             `;
             webViewRef.current.injectJavaScript(script);
