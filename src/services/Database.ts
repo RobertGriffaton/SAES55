@@ -87,3 +87,8 @@ export const getFavorites = async (userId?: string, validated?: boolean): Promis
 export const isFavorite = async (restaurantId: number, userId?: string): Promise<boolean> => {
   return Promise.resolve(false);
 };
+
+// 9. Reset interactions
+export const resetAllInteractions = async (): Promise<void> => {
+  return Promise.resolve();
+};

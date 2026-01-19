@@ -434,3 +434,19 @@ export const isFavorite = async (restaurantId: number, userId?: string): Promise
     return false;
   }
 };
+
+// --- RESET INTERACTIONS ---
+
+/**
+ * Réinitialise toutes les interactions (scores de popularité)
+ * Utilisé quand l'utilisateur change ses préférences pour permettre
+ * aux nouveaux restaurants de ne pas être dominés par l'historique
+ */
+export const resetAllInteractions = async (): Promise<void> => {
+  try {
+    await db.runAsync('DELETE FROM interactions');
+    console.log('[Mobile DB] ✅ Toutes les interactions ont été réinitialisées');
+  } catch (e) {
+    console.error("Erreur resetAllInteractions:", e);
+  }
+};

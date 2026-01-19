@@ -1,5 +1,5 @@
 import * as Location from 'expo-location';
-import { getAllRestaurants, getRestaurantsNearby, getUserHabits, getRestaurantPopularity } from "./Database";
+import { getAllRestaurants, getRestaurantsNearby, getUserHabits, getRestaurantPopularity, resetAllInteractions } from "./Database";
 import { getPreferences } from "../controllers/PreferencesController";
 
 // --- Poids des critères (OPTIMISÉS pour plus de diversité) ---
@@ -81,12 +81,18 @@ let needsRefresh = false;
 
 /**
  * Vide le cache des recommandations pour forcer un recalcul
+ * ET réinitialise toutes les interactions (scores de popularité)
  * Appelé quand les préférences changent dans Settings
+ * Cela permet aux nouveaux restaurants de ne pas être dominés par l'historique
  */
-export const clearRecommendationCache = () => {
+export const clearRecommendationCache = async () => {
     memoizedCache = null;
     needsRefresh = true;
-    console.log("[Algo] Cache vidé - recalcul au prochain appel");
+
+    // Réinitialiser les interactions pour repartir à zéro
+    await resetAllInteractions();
+
+    console.log("[Algo] Cache vidé + interactions réinitialisées - recalcul au prochain appel");
 };
 
 /**
