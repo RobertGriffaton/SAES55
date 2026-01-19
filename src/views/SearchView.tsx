@@ -115,6 +115,9 @@ export const SearchView = ({ onRestaurantSelect, savedState, onSaveState, isActi
   // Ref pour détecter si c'est la première activation
   const wasActiveRef = useRef(isActive);
 
+  // Ref pour la FlatList (pour scroll to top)
+  const flatListRef = useRef<FlatList>(null);
+
   // --- RESPONSIVE : Calcul des colonnes ---
   const { width } = useWindowDimensions();
   const numColumns = width > 1024 ? 3 : width > 600 ? 2 : 1;
@@ -374,8 +377,18 @@ export const SearchView = ({ onRestaurantSelect, savedState, onSaveState, isActi
 
   const totalPages = Math.max(1, Math.ceil(filteredRestaurants.length / ITEMS_PER_PAGE));
 
-  const goToNextPage = () => { if (currentPage < totalPages) setCurrentPage((p) => p + 1); };
-  const goToPrevPage = () => { if (currentPage > 1) setCurrentPage((p) => p - 1); };
+  const goToNextPage = () => {
+    if (currentPage < totalPages) {
+      setCurrentPage((p) => p + 1);
+      flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+    }
+  };
+  const goToPrevPage = () => {
+    if (currentPage > 1) {
+      setCurrentPage((p) => p - 1);
+      flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+    }
+  };
 
   // --- ACTIONS UI ---
 
@@ -692,6 +705,7 @@ export const SearchView = ({ onRestaurantSelect, savedState, onSaveState, isActi
         </View>
       ) : (
         <FlatList
+          ref={flatListRef}
           data={paginatedData}
           renderItem={renderCardItem}
           keyExtractor={(item, index) => (item.id ? item.id.toString() : index.toString())}
