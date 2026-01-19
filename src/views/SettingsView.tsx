@@ -165,6 +165,8 @@ export const SettingsView = () => {
   // Changer de profil actif
   const handleSwitchProfile = async (profileId: string) => {
     await setActiveProfile(profileId);
+    // Vider le cache pour recalculer les recommandations avec les préférences du nouveau profil
+    await clearRecommendationCache();
     loadData();
   };
 
