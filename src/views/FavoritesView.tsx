@@ -351,6 +351,11 @@ export default function FavoritesView({ onRestaurantSelect }: FavoritesViewProps
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        directionalLockEnabled={true}
+        scrollEventThrottle={16}
+        decelerationRate="fast"
+        overScrollMode="never"
+        bounces={false}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#6B4EFF']} />
         }
