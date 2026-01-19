@@ -12,6 +12,7 @@ import { RestaurantDetailView } from "../views/RestaurantDetailView";
 import { SearchView, SearchSessionState } from "../views/SearchView";
 import { SettingsView } from "../views/SettingsView";
 import { hasCompletedOnboarding, setOnboardingDone } from "./PreferencesController";
+import { MapSessionState } from "../models/MapModel";
 
 // --- ZONE DE DEBUG ---
 console.log("--- DEBUG IMPORTS ---");
@@ -25,13 +26,15 @@ console.log("BottomNavBar:", BottomNavBar);
 console.log("---------------------");
 // ---------------------
 
+
 export const NavigationController = () => {
   const [showOnboarding, setShowOnboarding] = useState(true);
   const [activeTab, setActiveTab] = useState<TabType>("map");
   const [selectedRestaurant, setSelectedRestaurant] = useState<any | null>(null);
 
-  // --- NOUVEAU : Stockage de la session de recherche ---
+  // --- NOUVEAUX : Stockages des sessions ---
   const [searchSession, setSearchSession] = useState<SearchSessionState | null>(null);
+  const [mapSession, setMapSession] = useState<MapSessionState | null>(null);
 
   useEffect(() => {
     const checkOnboarding = async () => {
@@ -76,7 +79,13 @@ export const NavigationController = () => {
     // Vérifications de sécurité pour les onglets
     if (activeTab === "map") {
       if (!MapView) return <Text>ERREUR: MapView est mal importé.</Text>;
-      return <MapView onRestaurantSelect={handleSelectRestaurant} />;
+      return (
+        <MapView
+          onRestaurantSelect={handleSelectRestaurant}
+          savedState={mapSession}
+          onSaveState={setMapSession}
+        />
+      );
     }
     if (activeTab === "search") {
       if (!SearchView) return <Text>ERREUR: SearchView est mal importé.</Text>;
