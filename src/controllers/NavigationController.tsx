@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { BackHandler, StyleSheet, Text, View } from "react-native";
 import { TabType } from "../models/TabModel";
 
@@ -33,6 +33,10 @@ export const NavigationController = () => {
   // --- NOUVEAU : Stockage de la session de recherche ---
   const [searchSession, setSearchSession] = useState<SearchSessionState | null>(null);
 
+  // --- REFRESH KEY : incrémenté quand on revient sur Search depuis Settings ---
+  const [refreshKey, setRefreshKey] = useState(0);
+  const prevTabRef = useRef(activeTab);
+
   useEffect(() => {
     const checkOnboarding = async () => {
       const completed = await hasCompletedOnboarding();
@@ -50,6 +54,16 @@ export const NavigationController = () => {
     const backHandler = BackHandler.addEventListener("hardwareBackPress", backAction);
     return () => backHandler.remove();
   }, [selectedRestaurant]);
+
+  // --- Détecter le changement d'onglet vers Search pour déclencher un refresh ---
+  useEffect(() => {
+    // Si on vient de Settings et on va sur Search, incrémenter refreshKey
+    if (activeTab === "search" && prevTabRef.current !== "search") {
+      console.log("[Nav] Retour sur Search - refresh déclenché");
+      setRefreshKey(prev => prev + 1);
+    }
+    prevTabRef.current = activeTab;
+  }, [activeTab]);
 
   const handleOnboardingDone = async () => {
     await setOnboardingDone();
@@ -86,6 +100,8 @@ export const NavigationController = () => {
           onRestaurantSelect={handleSelectRestaurant}
           savedState={searchSession}
           onSaveState={setSearchSession}
+          isActive={activeTab === "search"}
+          refreshKey={refreshKey}
         />
       );
     }

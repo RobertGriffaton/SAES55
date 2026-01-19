@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   TextInput,
   Keyboard,
+  RefreshControl,
   ScrollView,
   Platform,
   useWindowDimensions,
@@ -16,7 +17,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing } from "../styles/theme";
 // Import de l'algorithme intelligent
-import { getAdaptiveRecommendations } from "../services/RecommendationService";
+import { getAdaptiveRecommendations, clearRecommendationCache } from "../services/RecommendationService";
 // On garde getAllRestaurants pour les suggestions de recherche si besoin, 
 // mais le chargement principal se fait via l'algo.
 import { getAllRestaurants } from "../services/Database";
@@ -52,6 +53,10 @@ interface SearchViewProps {
   // --- 2. PROPS POUR LA SAUVEGARDE ---
   savedState?: SearchSessionState | null;
   onSaveState?: (state: SearchSessionState) => void;
+  // --- 3. PROP POUR DÉTECTER L'ACTIVATION ---
+  isActive?: boolean;
+  // --- 4. REFRESH KEY : incrémenté quand on revient sur cet onglet ---
+  refreshKey?: number;
 }
 
 const ITEMS_PER_PAGE = 10;
@@ -99,11 +104,14 @@ const CUISINE_CATEGORIES = [
   { id: "divers", label: "Divers", emoji: "🍽️" },
 ];
 
-export const SearchView = ({ onRestaurantSelect, savedState, onSaveState }: SearchViewProps) => {
+export const SearchView = ({ onRestaurantSelect, savedState, onSaveState, isActive = true, refreshKey = 0 }: SearchViewProps) => {
   // --- 3. INITIALISATION AVEC savedState ---
   const [allRestaurants, setAllRestaurants] = useState<any[]>(savedState?.restaurants || []);
   // Si on a déjà des restaurants, on ne met pas loading à true par défaut
   const [loading, setLoading] = useState(savedState?.restaurants && savedState.restaurants.length > 0 ? false : true);
+
+  // Ref pour détecter si c'est la première activation
+  const wasActiveRef = useRef(isActive);
 
   // --- RESPONSIVE : Calcul des colonnes ---
   const { width } = useWindowDimensions();
@@ -130,6 +138,7 @@ export const SearchView = ({ onRestaurantSelect, savedState, onSaveState }: Sear
   const [showFilters, setShowFilters] = useState(false);
   const [profileAvatar, setProfileAvatar] = useState<AvatarId | null>(null);
   const [profileName, setProfileName] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   // --- 4. EFFET DE SAUVEGARDE AUTOMATIQUE ---
   useEffect(() => {
@@ -150,7 +159,7 @@ export const SearchView = ({ onRestaurantSelect, savedState, onSaveState }: Sear
 
   // --- CHARGEMENT INTELLIGENT ---
   useEffect(() => {
-    // On ne charge que si la liste est vide (évite le rechargement au retour)
+    // On ne charge que si la liste est vide (premier chargement)
     if (allRestaurants.length === 0) {
       loadData();
     }
@@ -163,6 +172,26 @@ export const SearchView = ({ onRestaurantSelect, savedState, onSaveState }: Sear
       }
     })();
   }, []);
+
+  // --- AUTO-REFRESH AU RETOUR SUR L'ACCUEIL ---
+  // Déclenché quand refreshKey change (retour sur l'onglet)
+  useEffect(() => {
+    // Ne pas rafraîchir au premier rendu (refreshKey === 0)
+    if (refreshKey && refreshKey > 0 && allRestaurants.length > 0) {
+      console.log("[Home] Retour sur l'écran - rafraîchissement des recommandations");
+      clearRecommendationCache();
+      loadData();
+
+      // Rafraîchir aussi le profil (avatar + nom)
+      (async () => {
+        const profile = await getActiveProfile();
+        if (profile) {
+          setProfileAvatar(profile.avatar);
+          setProfileName(profile.name);
+        }
+      })();
+    }
+  }, [refreshKey]);
 
   // Fonction de chargement qui accepte des coordonnées pour recalculer le score
   const loadData = async (lat?: number, lon?: number, rad?: number) => {
@@ -177,6 +206,29 @@ export const SearchView = ({ onRestaurantSelect, savedState, onSaveState }: Sear
       setLoading(false);
     }
   };
+
+  // Fonction de rafraîchissement (pull-to-refresh + bouton)
+  const handleRefresh = useCallback(async () => {
+    console.log("[Home] Rafraîchissement manuel déclenché");
+    setRefreshing(true);
+    clearRecommendationCache();
+
+    try {
+      const data = await getAdaptiveRecommendations();
+      setAllRestaurants(Array.isArray(data) ? data : []);
+
+      // Rafraîchir aussi le profil
+      const profile = await getActiveProfile();
+      if (profile) {
+        setProfileAvatar(profile.avatar);
+        setProfileName(profile.name);
+      }
+    } catch (e) {
+      console.error("Erreur refresh:", e);
+    } finally {
+      setRefreshing(false);
+    }
+  }, []);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -570,9 +622,7 @@ export const SearchView = ({ onRestaurantSelect, savedState, onSaveState }: Sear
       {/* Titre de Section (adaptatif) */}
       <View style={styles.sectionHeader}>
         {(!isSearching && searchText.length < 3) ? (
-          <>
-            <Text style={styles.sectionTitle}>Nos recommandations</Text>
-          </>
+          <Text style={styles.sectionTitle}>Nos recommandations</Text>
         ) : (
           <Text style={styles.sectionTitle}>Résultats pour "{searchText}"</Text>
         )}
@@ -608,6 +658,15 @@ export const SearchView = ({ onRestaurantSelect, savedState, onSaveState }: Sear
           key={`grid-${numColumns}`}
           numColumns={numColumns}
           columnWrapperStyle={isGrid ? { gap: 20 } : undefined}
+
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              colors={[colors.grayePurple]}
+              tintColor={colors.grayePurple}
+            />
+          }
 
           ListEmptyComponent={
             <View style={styles.emptySearch}><Text style={styles.emptyText}>Aucun restaurant ne correspond à vos filtres.</Text></View>
@@ -779,6 +838,11 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "800",
     color: "#1F2937",
+  },
+  refreshBtn: {
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: colors.grayeSurface || "#F3F4F6",
   },
   sectionLink: {
     fontSize: 12,

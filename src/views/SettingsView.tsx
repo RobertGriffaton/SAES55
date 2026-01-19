@@ -32,6 +32,7 @@ import {
   formatMemberSince,
   getLevelProgress,
 } from "../controllers/ProfileController";
+import { clearRecommendationCache } from "../services/RecommendationService";
 
 // Mapping des images avatars
 const AVATAR_IMAGES: Record<AvatarId, any> = {
@@ -228,7 +229,11 @@ export const SettingsView = () => {
     };
 
     await updateProfile(activeProfile.id, { preferences: newPrefs });
-    Alert.alert("Succès", "Vos préférences ont été enregistrées !");
+
+    // Vider le cache de l'algo pour que les nouvelles préf recalculent les recommandations
+    clearRecommendationCache();
+
+    Alert.alert("Succès", "Vos préférences ont été enregistrées !\nLes recommandations seront mises à jour.");
     loadData();
   };
 
@@ -622,39 +627,6 @@ export const SettingsView = () => {
           </ScrollView>
         </View>
 
-        {/* Section Distance */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>
-            <Ionicons name="location" size={14} color={colors.grayePurple} /> Distance Max
-          </Text>
-          <View style={styles.distanceCard}>
-            <View style={styles.distanceLabels}>
-              <Text style={styles.distanceLabel}>1 km</Text>
-              <Text style={[styles.distanceLabel, styles.distanceLabelActive]}>{distanceKm} km</Text>
-              <Text style={styles.distanceLabel}>20 km</Text>
-            </View>
-            <View style={styles.sliderTrack}>
-              <View style={[styles.sliderFill, { width: `${getDistancePercentage()}%` }]} />
-              <View
-                style={[styles.sliderThumb, { left: `${getDistancePercentage()}%` }]}
-              />
-            </View>
-            <View style={styles.sliderButtons}>
-              <TouchableOpacity
-                style={styles.sliderBtn}
-                onPress={() => setDistanceKm(Math.max(1, distanceKm - 1))}
-              >
-                <Ionicons name="remove" size={18} color={colors.grayePurple} />
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.sliderBtn}
-                onPress={() => setDistanceKm(Math.min(20, distanceKm + 1))}
-              >
-                <Ionicons name="add" size={18} color={colors.grayePurple} />
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
 
         {/* Bouton Sauvegarder */}
         <TouchableOpacity style={styles.saveBtn} onPress={handleSavePreferences}>

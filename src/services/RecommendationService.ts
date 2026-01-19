@@ -27,6 +27,43 @@ const DIVERSITY_BOOST = 40; // Boost pour forcer la diversité
 const MIN_SCORE_THRESHOLD = 50; // Score minimum pour être inclus dans les résultats
 const MAX_SCORE_THRESHOLD = 500; // Score maximum (plafond)
 
+// --- MAPPING PRÉFÉRENCES -> TAGS RESTAURANTS ---
+// Les IDs de préférences utilisateur doivent correspondre aux tags des restaurants
+const CUISINE_TAG_MAPPING: Record<string, string[]> = {
+    "Amérique": ["burger", "americain", "fast_food", "usa"],
+    "Américain": ["americain", "burger", "fast_food", "usa"],
+    "Japonais": ["japonais", "sushi", "ramen", "japanese"],
+    "Italien": ["italien", "pizza", "italiano", "pasta"],
+    "Europe": ["healthy", "europeen", "salade", "bio"],
+    "Maghreb": ["kebab", "maghreb", "oriental", "halal"],
+    "Mexique": ["mexicain", "tacos", "mexican", "tex-mex"],
+    "Français": ["francais", "french", "bistrot", "brasserie"],
+    "Chinois": ["chinois", "chinese", "asiatique"],
+    "Asiatique": ["asiatique", "asian", "wok", "noodles"],
+    "Thai": ["thai", "thailandais"],
+    "Vietnamien": ["vietnamien", "pho", "vietnamese"],
+    "Coréen": ["coreen", "korean", "bbq coréen"],
+    "Afrique": ["africain", "afrique", "african"],
+    "Oriental": ["oriental", "libanais", "turc", "falafel"],
+    "Grec": ["grec", "greek", "gyros"],
+    "Latino": ["latino", "sud-americain", "bresilien"],
+    "Poulet": ["poulet", "chicken", "fried chicken"],
+    "Sandwich": ["sandwich", "panini", "sub"],
+    "FastFood": ["fast_food", "burger", "quick", "kfc", "mcdo"],
+    "Café": ["cafe", "coffee", "salon de thé"],
+    "Pâtisserie": ["patisserie", "dessert", "gateau"],
+    "Crêperie": ["creperie", "crepe", "galette"],
+    "Grill": ["grill", "viande", "steakhouse"],
+    "FruitsDeMer": ["fruits_de_mer", "poisson", "seafood"],
+    "Espagnol": ["espagnol", "spanish", "tapas"],
+    "Turc": ["turc", "turkish", "kebab"],
+    "Créole": ["creole", "antillais", "caribbean"],
+    "Méditerranéen": ["mediterraneen", "mediterranean", "grec", "libanais"],
+    "BubbleTea": ["bubble_tea", "boba", "thé"],
+    "Inde": ["indien", "indian", "curry"],
+    "Libanais": ["libanais", "lebanese", "mezze"],
+};
+
 // Définition des types
 type HabitsMap = Record<string, number>;
 type PopularityMap = Record<number, number>;
@@ -38,6 +75,15 @@ let memoizedCache: {
     data: any[];
     timestamp: number;
 } | null = null;
+
+/**
+ * Vide le cache des recommandations pour forcer un recalcul
+ * Appelé quand les préférences changent dans Settings
+ */
+export const clearRecommendationCache = () => {
+    memoizedCache = null;
+    console.log("[Algo] Cache vidé - recalcul au prochain appel");
+};
 
 export const getAdaptiveRecommendations = async (
     forceLat?: number,
@@ -147,7 +193,19 @@ export const getAdaptiveRecommendations = async (
         });
 
         if (prefs.cuisines && prefs.cuisines.length > 0) {
-            if (tags.some((t: string) => prefs.cuisines.map(c => c.toLowerCase()).includes(t))) {
+            // Utiliser le mapping pour convertir les préférences utilisateur en tags de restaurant
+            const userTagsExpanded: string[] = [];
+            prefs.cuisines.forEach((cuisine: string) => {
+                const mappedTags = CUISINE_TAG_MAPPING[cuisine];
+                if (mappedTags) {
+                    userTagsExpanded.push(...mappedTags);
+                }
+                // Ajouter aussi le nom de la cuisine en minuscule au cas où
+                userTagsExpanded.push(cuisine.toLowerCase());
+            });
+
+            // Vérifier si un tag du restaurant correspond aux préférences utilisateur
+            if (tags.some((t: string) => userTagsExpanded.includes(t))) {
                 score += BONUS_PREFERENCE;
                 matchesTaste = true;
                 details.push(`Préférence`);
