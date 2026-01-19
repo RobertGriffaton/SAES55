@@ -155,6 +155,18 @@ export const MapViewComponent = ({ onRestaurantSelect, savedState, onSaveState }
     return () => clearTimeout(handler);
   }, [searchText, position, radiusKm, selectedRestaurant, restaurants]);
 
+  // 2 ter. Synchronisation du marqueur sélectionné sur la carte
+  useEffect(() => {
+    if (webViewRef.current && selectedRestaurant) {
+      webViewRef.current.injectJavaScript(`
+        if (typeof window.setSelectedMarkerId === 'function') {
+          window.setSelectedMarkerId(${selectedRestaurant.id});
+        }
+        true;
+      `);
+    }
+  }, [selectedRestaurant]);
+
   const fetchRestaurants = async (lat: number, lon: number, rad: number) => {
     try {
       const data = await getRestaurantsNearby(lat, lon, rad);
@@ -170,12 +182,13 @@ export const MapViewComponent = ({ onRestaurantSelect, savedState, onSaveState }
           lon: r.lon,
           name: r.name,
           cuisines: r.cuisines,
-          type: r.type
+          type: r.type,
+          distanceKm: r.distanceKm
         }));
 
         webViewRef.current.injectJavaScript(`
           if (typeof renderMarkers === 'function') {
-            renderMarkers(${JSON.stringify(lightData)});
+            renderMarkers(${JSON.stringify(lightData)}, ${selectedRestaurant?.id || 'null'});
           }
           true;
         `);
@@ -293,6 +306,14 @@ export const MapViewComponent = ({ onRestaurantSelect, savedState, onSaveState }
             border: 3px solid white;
             box-shadow: 0 3px 10px rgba(0,0,0,0.3);
             font-size: 18px;
+            transition: all 0.3s ease;
+          }
+
+          .selected-marker {
+            border: 4px solid #FFD700 !important;
+            transform: scale(1.35);
+            z-index: 999;
+            box-shadow: 0 0 15px rgba(255, 215, 0, 0.6);
           }
 
           .user-marker {
@@ -341,6 +362,9 @@ export const MapViewComponent = ({ onRestaurantSelect, savedState, onSaveState }
             window.shouldFitBounds = false;
           });
 
+          var currentRestaurants = [];
+          var currentSelectedId = null;
+
           var userMarker = L.marker([48.85, 2.35], {
             icon: L.divIcon({
               className: 'custom-div-icon',
@@ -359,8 +383,16 @@ export const MapViewComponent = ({ onRestaurantSelect, savedState, onSaveState }
 
           var markersLayer = L.layerGroup().addTo(window.map);
 
-          function renderMarkers(restos) {
-            if (!restos) return;
+          window.setSelectedMarkerId = function(id) {
+            currentSelectedId = id;
+            renderMarkers(currentRestaurants, id);
+          };
+
+          function renderMarkers(restos, selectedId) {
+            if (restos) currentRestaurants = restos;
+            var restosToRender = currentRestaurants;
+            if (selectedId !== undefined) currentSelectedId = selectedId;
+            
             markersLayer.clearLayers();
             var group = L.featureGroup();
             group.addLayer(userMarker);
@@ -374,11 +406,15 @@ export const MapViewComponent = ({ onRestaurantSelect, savedState, onSaveState }
               else if (cuisine.includes('pizza')) { color = '#FFA500'; icon = '🍕'; }
               else if (cuisine.includes('sushi') || cuisine.includes('asian')) { color = '#FF69B4'; icon = '🍱'; }
               
+              var isSelected = r.id == currentSelectedId;
+              var markerClass = isSelected ? 'custom-marker selected-marker' : 'custom-marker';
+
               var m = L.marker([r.lat, r.lon], {
                 icon: L.divIcon({
                   className: 'custom-div-icon',
-                  html: '<div class="custom-marker" style="background: ' + color + '">' + icon + '</div>',
-                  iconSize: [36, 36], iconAnchor: [18, 18]
+                  html: '<div class="' + markerClass + '" style="background: ' + color + '">' + icon + '</div>',
+                  iconSize: isSelected ? [48, 48] : [36, 36], 
+                  iconAnchor: isSelected ? [24, 24] : [18, 18]
                 })
               });
 
@@ -408,9 +444,23 @@ export const MapViewComponent = ({ onRestaurantSelect, savedState, onSaveState }
 
   const handleMessage = (event: any) => {
     try {
-      const r = JSON.parse(event.nativeEvent.data);
-      setSelectedRestaurant(r);
-    } catch (e) { }
+      const data = JSON.parse(event.nativeEvent.data);
+      if (data && data.id) {
+        // IMPORTANT: On cherche l'objet COMPLET dans notre state local
+        // car le marqueur WebView ne contient qu'une version allégée.
+        const fullRestaurant = restaurants.find(r => r.id === data.id);
+        if (fullRestaurant) {
+          setSelectedRestaurant(fullRestaurant);
+
+          // Faire défiler le carrousel vers l'item sélectionné
+          if (carouselRef.current) {
+            carouselRef.current.scrollToOffset({ offset: 0, animated: true });
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("Erreur message WebView:", e);
+    }
   };
 
   if (loading || !position) {
@@ -435,11 +485,11 @@ export const MapViewComponent = ({ onRestaurantSelect, savedState, onSaveState }
         onLoad={() => {
           if (webViewRef.current && position) {
             const lightData = restaurants.slice(0, 100).map((r: any) => ({
-              id: r.id, lat: r.lat, lon: r.lon, name: r.name, cuisines: r.cuisines, type: r.type
+              id: r.id, lat: r.lat, lon: r.lon, name: r.name, cuisines: r.cuisines, type: r.type, distanceKm: r.distanceKm
             }));
             const script = `
               if (window.updateUserPos) window.updateUserPos(${position[0]}, ${position[1]}, 15);
-              if (window.renderMarkers) window.renderMarkers(${JSON.stringify(lightData)});
+              if (window.renderMarkers) window.renderMarkers(${JSON.stringify(lightData)}, ${selectedRestaurant?.id || 'null'});
               true;
             `;
             webViewRef.current.injectJavaScript(script);
@@ -534,7 +584,13 @@ export const MapViewComponent = ({ onRestaurantSelect, savedState, onSaveState }
                   <Text style={styles.restaurantName} numberOfLines={1}>{item.name}</Text>
                   <Text style={styles.restaurantType} numberOfLines={1}>{item.cuisines || item.type}</Text>
                   <View style={styles.restaurantMeta}>
-                    <Text style={styles.restaurantDistance}>{item.distanceKm ? `${item.distanceKm.toFixed(1)} km` : (item.distance ? `${item.distance.toFixed(1)} km` : '0.5km')}</Text>
+                    <Text style={styles.restaurantDistance}>
+                      {(item.distanceKm !== undefined && item.distanceKm !== null)
+                        ? `${item.distanceKm.toFixed(1)} km`
+                        : (item.distance !== undefined && item.distance !== null
+                          ? `${item.distance.toFixed(1)} km`
+                          : '0.5 km')}
+                    </Text>
                   </View>
                 </View>
                 <TouchableOpacity
@@ -586,25 +642,25 @@ const styles = StyleSheet.create({
   },
 
   radiusControls: {
-    position: 'absolute', 
+    position: 'absolute',
     bottom: 200, // ABAISSÉ (était 260)
-    right: 20, 
-    alignItems: 'center', 
+    right: 20,
+    alignItems: 'center',
     gap: 8, // Écart réduit entre les boutons
     zIndex: 100,
   },
   controlBtn: {
     width: 44, // TAILLE RÉDUITE (était 54)
-    height: 44, 
-    backgroundColor: 'white', 
+    height: 44,
+    backgroundColor: 'white',
     borderRadius: 22, // Rond
     justifyContent: 'center', alignItems: 'center',
     elevation: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2,
   },
   radiusBadge: {
-    backgroundColor: '#007AFF', 
+    backgroundColor: '#007AFF',
     width: 44, // TAILLE RÉDUITE (était 54)
-    height: 44, 
+    height: 44,
     borderRadius: 22,
     justifyContent: 'center', alignItems: 'center',
     elevation: 10, shadowColor: '#007AFF', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3,
@@ -614,9 +670,9 @@ const styles = StyleSheet.create({
   radiusBadgeUnit: { color: 'white', fontWeight: '700', fontSize: 10, marginTop: -2 }, // Font réduite
 
   restaurantCarousel: {
-    position: 'absolute', 
-    bottom: 70, 
-    left: 0, 
+    position: 'absolute',
+    bottom: 70,
+    left: 0,
     right: 0,
   },
   carouselContent: { paddingHorizontal: 20, paddingBottom: 15 },
