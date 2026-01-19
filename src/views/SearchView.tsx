@@ -13,6 +13,7 @@ import {
   Platform,
   useWindowDimensions,
   Image,
+  Animated,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing } from "../styles/theme";
@@ -144,6 +145,10 @@ export const SearchView = ({ onRestaurantSelect, savedState, onSaveState, isActi
   const [profileAvatar, setProfileAvatar] = useState<AvatarId | null>(null);
   const [profileName, setProfileName] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+
+  // --- ÉTAT DE SCROLL POUR CACHER LE HEADER ---
+  const [isScrolling, setIsScrolling] = useState(false);
+  const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // --- 4. EFFET DE SAUVEGARDE AUTOMATIQUE ---
   useEffect(() => {
@@ -278,6 +283,29 @@ export const SearchView = ({ onRestaurantSelect, savedState, onSaveState, isActi
   useEffect(() => {
     setCurrentPage(1);
   }, [selectedCategories, takeawayOnly, onSiteOnly, useLocationFilter, radiusKm, userLocation]);
+
+  // --- GESTION DU SCROLL POUR CACHER LE HEADER ---
+  const lastScrollY = useRef(0);
+
+  const handleScroll = useCallback((event: any) => {
+    const currentY = event.nativeEvent.contentOffset.y;
+
+    // Simple: caché dès qu'on scroll, visible uniquement tout en haut
+    if (currentY > 20) {
+      setIsScrolling(true);
+    } else {
+      setIsScrolling(false);
+    }
+  }, []);
+
+  // Cleanup du timeout
+  useEffect(() => {
+    return () => {
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // --- FONCTIONS UTILITAIRES ---
 
@@ -638,8 +666,8 @@ export const SearchView = ({ onRestaurantSelect, savedState, onSaveState, isActi
         </View>
       )}
 
-      {/* Filters Panel */}
-      {showFilters && (!isSearching || searchText.length < 3) && (
+      {/* Filters Panel - Caché pendant le scroll */}
+      {showFilters && (!isSearching || searchText.length < 3) && !isScrolling && (
         <View style={styles.filtersContainer}>
           <View style={styles.filterRow}>
             <Text style={styles.filterLabel}>Rayon</Text>
@@ -677,14 +705,16 @@ export const SearchView = ({ onRestaurantSelect, savedState, onSaveState, isActi
         </View>
       )}
 
-      {/* Titre de Section (adaptatif) */}
-      <View style={styles.sectionHeader}>
-        {(!isSearching && searchText.length < 3) ? (
-          <Text style={styles.sectionTitle}>Nos recommandations</Text>
-        ) : (
-          <Text style={styles.sectionTitle}>Résultats pour "{searchText}"</Text>
-        )}
-      </View>
+      {/* Titre de Section (adaptatif) - Caché pendant le scroll */}
+      {!isScrolling && (
+        <View style={styles.sectionHeader}>
+          {(!isSearching && searchText.length < 3) ? (
+            <Text style={styles.sectionTitle}>Nos recommandations</Text>
+          ) : (
+            <Text style={styles.sectionTitle}>Résultats pour "{searchText}"</Text>
+          )}
+        </View>
+      )}
     </View>
   );
 
@@ -713,6 +743,8 @@ export const SearchView = ({ onRestaurantSelect, savedState, onSaveState, isActi
           showsVerticalScrollIndicator={false}
           ListFooterComponent={renderPaginationFooter}
           keyboardDismissMode="on-drag"
+          onScroll={handleScroll}
+          scrollEventThrottle={16}
 
           key={`grid-${numColumns}`}
           numColumns={numColumns}
@@ -819,7 +851,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     paddingHorizontal: 16,
     height: 52,
-    marginBottom: 16,
+    marginBottom: 10,
     borderWidth: 2, // Bordure visible
     borderColor: colors.primary || "#6B4EFF", // Couleur violette
   },
@@ -841,7 +873,7 @@ const styles = StyleSheet.create({
 
   // Categories Pills
   categoriesContainer: {
-    marginBottom: 16,
+    marginBottom: 10,
   },
   categoriesScroll: {
     gap: 12,

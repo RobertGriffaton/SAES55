@@ -85,7 +85,7 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: "#fff",
     borderRadius: 16,
-    marginBottom: 20,
+    marginBottom: 12,
     flexDirection: "column",
     overflow: "hidden",
     width: "100%",
