@@ -271,6 +271,15 @@ export const addFavorite = async (restaurantId: number, userId?: string): Promis
       });
       await saveFavoriteEntries(entries);
       console.log(`[Web DB] Restaurant ${restaurantId} ajouté aux favoris pour user ${uid}`);
+
+      // Enregistrer une interaction pour augmenter le score du restaurant
+      const allRestaurants = await getAllRestaurants();
+      const restaurant = allRestaurants.find((r: any) => String(r.id) === key);
+      if (restaurant) {
+        const cuisine = restaurant.cuisines || restaurant.type || 'unknown';
+        await logInteraction(restaurantId, cuisine, 'click');
+        console.log(`[Web DB] Interaction 'click' enregistrée pour le restaurant ${restaurantId}`);
+      }
     }
   } catch (e) {
     console.error("Erreur ajout favori:", e);

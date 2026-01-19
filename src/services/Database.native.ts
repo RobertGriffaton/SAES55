@@ -336,11 +336,25 @@ export const addFavorite = async (restaurantId: number, userId?: string): Promis
     await ensureFavoritesTable();
     const uid = userId || 'default';
 
-    await db.runAsync(
+    const result = await db.runAsync(
       'INSERT OR IGNORE INTO favorites_v2 (restaurant_id, user_id, validated, created_at) VALUES (?, ?, 0, ?)',
       [restaurantId, uid, Date.now()]
     );
     console.log(`[Mobile DB] Restaurant ${restaurantId} ajouté aux favoris pour user ${uid}`);
+
+    // Enregistrer une interaction pour augmenter le score du restaurant
+    // On vérifie que l'insertion a réussi (changes > 0)
+    if (result.changes > 0) {
+      const restaurant = await db.getFirstAsync<any>(
+        'SELECT cuisines, type FROM restaurants WHERE id = ?',
+        [restaurantId]
+      );
+      if (restaurant) {
+        const cuisine = restaurant.cuisines || restaurant.type || 'unknown';
+        await logInteraction(restaurantId, cuisine, 'click');
+        console.log(`[Mobile DB] Interaction 'click' enregistrée pour le restaurant ${restaurantId}`);
+      }
+    }
   } catch (e) {
     console.error("Erreur addFavorite:", e);
   }
