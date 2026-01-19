@@ -17,7 +17,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing } from "../styles/theme";
 // Import de l'algorithme intelligent
-import { getAdaptiveRecommendations, clearRecommendationCache } from "../services/RecommendationService";
+import { getAdaptiveRecommendations, clearRecommendationCache, checkAndResetRefreshFlag } from "../services/RecommendationService";
 // On garde getAllRestaurants pour les suggestions de recherche si besoin, 
 // mais le chargement principal se fait via l'algo.
 import { getAllRestaurants } from "../services/Database";
@@ -57,11 +57,13 @@ interface SearchViewProps {
   isActive?: boolean;
   // --- 4. REFRESH KEY : incrémenté quand on revient sur cet onglet ---
   refreshKey?: number;
+  // --- 5. NAVIGATION VERS SETTINGS ---
+  onNavigateToSettings?: () => void;
 }
 
 const ITEMS_PER_PAGE = 10;
 const MAX_SUGGESTIONS = 7;
-const RADIUS_OPTIONS = [2, 5, 10, 20];
+const RADIUS_OPTIONS = [1, 2, 5, 10, 20];
 
 // Liste complète des catégories de cuisine avec emojis
 const CUISINE_CATEGORIES = [
@@ -104,7 +106,7 @@ const CUISINE_CATEGORIES = [
   { id: "divers", label: "Divers", emoji: "🍽️" },
 ];
 
-export const SearchView = ({ onRestaurantSelect, savedState, onSaveState, isActive = true, refreshKey = 0 }: SearchViewProps) => {
+export const SearchView = ({ onRestaurantSelect, savedState, onSaveState, isActive = true, refreshKey = 0, onNavigateToSettings }: SearchViewProps) => {
   // --- 3. INITIALISATION AVEC savedState ---
   const [allRestaurants, setAllRestaurants] = useState<any[]>(savedState?.restaurants || []);
   // Si on a déjà des restaurants, on ne met pas loading à true par défaut
@@ -213,12 +215,13 @@ export const SearchView = ({ onRestaurantSelect, savedState, onSaveState, isActi
   }, []);
 
   // --- AUTO-REFRESH AU RETOUR SUR L'ACCUEIL ---
-  // Déclenché quand refreshKey change (retour sur l'onglet)
+  // Déclenché quand refreshKey change (retour sur l'onglet) OU quand on détecte un besoin de refresh
   useEffect(() => {
-    // Ne pas rafraîchir au premier rendu (refreshKey === 0)
-    if (refreshKey && refreshKey > 0 && allRestaurants.length > 0) {
-      console.log("[Home] Retour sur l'écran - rafraîchissement des recommandations");
-      clearRecommendationCache();
+    // Vérifier le flag global (pour mobile) et/ou le refreshKey (pour web)
+    const needsGlobalRefresh = checkAndResetRefreshFlag();
+
+    if ((refreshKey && refreshKey > 0 && allRestaurants.length > 0) || needsGlobalRefresh) {
+      console.log("[Home] Refresh détecté - refreshKey:", refreshKey, "globalFlag:", needsGlobalRefresh);
       loadData();
 
       // Rafraîchir aussi le profil (avatar + nom)
@@ -551,7 +554,7 @@ export const SearchView = ({ onRestaurantSelect, savedState, onSaveState, isActi
               )}
             </View>
           </TouchableOpacity>
-          <View style={styles.profileSection}>
+          <TouchableOpacity style={styles.profileSection} onPress={onNavigateToSettings}>
             {profileName && (
               <Text style={styles.profileName}>{profileName}</Text>
             )}
@@ -562,7 +565,7 @@ export const SearchView = ({ onRestaurantSelect, savedState, onSaveState, isActi
                 <Ionicons name="person" size={24} color="#9CA3AF" style={{ alignSelf: "center", marginTop: 6 }} />
               )}
             </View>
-          </View>
+          </TouchableOpacity>
         </View>
 
         {/* Main Title */}
@@ -626,25 +629,28 @@ export const SearchView = ({ onRestaurantSelect, savedState, onSaveState, isActi
       {showFilters && (!isSearching || searchText.length < 3) && (
         <View style={styles.filtersContainer}>
           <View style={styles.filterRow}>
-            <Text style={styles.filterLabel}>Autour de moi</Text>
-            <View style={styles.chipsRow}>
-              <TouchableOpacity style={[styles.chip, useLocationFilter && styles.chipActive]} onPress={() => { if (useLocationFilter) { setUseLocationFilter(false); } else { requestLocation(); } }}>
-                <Ionicons name={useLocationFilter ? "location" : "location-outline"} size={14} color={useLocationFilter ? "#fff" : colors.text} style={{ marginRight: 6 }} />
-                <Text style={[styles.chipText, useLocationFilter && styles.chipTextActive]}>Activer</Text>
-              </TouchableOpacity>
-              {useLocationFilter && (
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsRow}>
-                  {RADIUS_OPTIONS.map((opt) => {
-                    const active = radiusKm === opt;
-                    return (
-                      <TouchableOpacity key={opt} style={[styles.chip, active && styles.chipActive]} onPress={() => { setRadiusKm(opt); if (userLocation) loadData(userLocation.lat, userLocation.lon, opt); }}>
-                        <Text style={[styles.chipText, active && styles.chipTextActive]}>{opt} km</Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </ScrollView>
-              )}
-            </View>
+            <Text style={styles.filterLabel}>Rayon</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsRow}>
+              {RADIUS_OPTIONS.map((opt) => {
+                const active = radiusKm === opt;
+                return (
+                  <TouchableOpacity
+                    key={opt}
+                    style={[styles.chip, active && styles.chipActive]}
+                    onPress={() => {
+                      setRadiusKm(opt);
+                      if (!useLocationFilter) {
+                        requestLocation();
+                      } else if (userLocation) {
+                        loadData(userLocation.lat, userLocation.lon, opt);
+                      }
+                    }}
+                  >
+                    <Text style={[styles.chipText, active && styles.chipTextActive]}>{opt} km</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
           </View>
           <View style={styles.filterRow}>
             <Text style={styles.filterLabel}>Service</Text>

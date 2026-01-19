@@ -102,6 +102,7 @@ export const NavigationController = () => {
           onSaveState={setSearchSession}
           isActive={activeTab === "search"}
           refreshKey={refreshKey}
+          onNavigateToSettings={() => setActiveTab("settings")}
         />
       );
     }
