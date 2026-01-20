@@ -11,6 +11,8 @@ export const CATEGORY_IMAGES: Record<string, any> = {
   "subway": require("../../assets/imagescover/subway.png"),
   "chicken_spot": require("../../assets/imagescover/chickenspot.png"),
   "burger_king": require("../../assets/imagescover/burgerking.png"),
+  "dominos": require("../../assets/imagescover/dominos.png"),
+  
 
   // --- CATÉGORIES AVEC VARIATIONS (Tableaux d'images) ---
   "burger": [
