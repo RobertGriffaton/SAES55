@@ -46,7 +46,7 @@ export interface UserPreferences {
     distanceKm: number; // rayon de recherche max
     diet: Diet;
     ambiance: Ambiance | null;
-    options: { surPlace: boolean; emporter: boolean; livraison: boolean };
+    options: { surPlace: boolean; emporter: boolean; livraison: boolean; pmr: boolean };
 }
 
 
@@ -56,7 +56,7 @@ export const DEFAULT_PREFERENCES: UserPreferences = {
     distanceKm: 5,
     diet: "Aucune",
     ambiance: null,
-    options: { surPlace: true, emporter: false, livraison: false },
+    options: { surPlace: true, emporter: false, livraison: false, pmr: false },
 };
 
 // Avatars disponibles

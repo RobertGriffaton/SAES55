@@ -1,6 +1,6 @@
 import * as Location from 'expo-location';
-import { getAllRestaurants, getRestaurantsNearby, getUserHabits, getRestaurantPopularity, resetAllInteractions } from "./Database";
 import { getPreferences } from "../controllers/PreferencesController";
+import { getAllRestaurants, getRestaurantPopularity, getRestaurantsNearby, getUserHabits, resetAllInteractions } from "./Database";
 
 // --- Poids des critères (OPTIMISÉS pour plus de diversité) ---
 const SCORE_BASE = 100;
@@ -201,6 +201,16 @@ export const getAdaptiveRecommendations = async (
                     details.push("Incompatible");
                     isExplorable = false;
                 }
+            }
+        }
+
+        // A-bis. Accessibilité PMR (Critique)
+        if (prefs.options.pmr) {
+            const isAccessible = resto.wheelchair === 1 || resto.wheelchair === true || resto.wheelchair === "yes";
+            if (!isAccessible) {
+                score -= 1000; // Pénalité bloquante
+                details.push("Non accessible");
+                isExplorable = false;
             }
         }
 

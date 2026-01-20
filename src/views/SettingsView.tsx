@@ -1,38 +1,37 @@
-import React, { useState, useEffect, useCallback } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  TextInput,
-  TouchableOpacity,
-  ScrollView,
-  Alert,
-  Image,
-  Modal,
-  Dimensions,
-} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { colors, spacing } from "../styles/theme";
+import React, { useCallback, useEffect, useState } from "react";
 import {
-  UserProfile,
-  UserPreferences,
-  AVATARS,
-  AvatarId,
-  Cuisine,
-  Diet,
-  DEFAULT_PREFERENCES,
-} from "../models/PreferencesModel";
+    Alert,
+    Dimensions,
+    Image,
+    Modal,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
+} from "react-native";
 import {
-  getAllProfiles,
-  getActiveProfile,
-  setActiveProfile,
-  createProfile,
-  updateProfile,
-  deleteProfile,
-  formatMemberSince,
-  getLevelProgress,
+    createProfile,
+    deleteProfile,
+    formatMemberSince,
+    getActiveProfile,
+    getAllProfiles,
+    getLevelProgress,
+    setActiveProfile,
+    updateProfile,
 } from "../controllers/ProfileController";
+import {
+    AVATARS,
+    AvatarId,
+    Cuisine,
+    Diet,
+    UserPreferences,
+    UserProfile
+} from "../models/PreferencesModel";
 import { clearRecommendationCache } from "../services/RecommendationService";
+import { colors, spacing } from "../styles/theme";
 
 // Mapping des images avatars
 const AVATAR_IMAGES: Record<AvatarId, any> = {
@@ -114,6 +113,7 @@ export const SettingsView = () => {
   const [selectedDiet, setSelectedDiet] = useState<Diet>("Aucune");
   const [selectedCuisines, setSelectedCuisines] = useState<Cuisine[]>([]);
   const [distanceKm, setDistanceKm] = useState(5);
+  const [pmr, setPmr] = useState(false);
 
   // Modals
   const [showAvatarModal, setShowAvatarModal] = useState(false);
@@ -138,6 +138,7 @@ export const SettingsView = () => {
       setSelectedDiet(prefs.diet);
       setSelectedCuisines(prefs.cuisines);
       setDistanceKm(prefs.distanceKm);
+      setPmr(prefs.options.pmr || false);
     }
 
     setLoading(false);
@@ -228,6 +229,7 @@ export const SettingsView = () => {
       diet: selectedDiet,
       cuisines: selectedCuisines,
       distanceKm: distanceKm,
+      options: { ...activeProfile.preferences.options, pmr: pmr },
     };
 
     await updateProfile(activeProfile.id, { preferences: newPrefs });
@@ -541,6 +543,35 @@ export const SettingsView = () => {
             <Text style={styles.addProfileSingleText}>Ajouter un profil</Text>
           </TouchableOpacity>
         )}
+
+        {/* Section Accessibilité */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>
+            <Ionicons name="accessibility" size={14} color={colors.grayePurple} /> Accessibilité
+          </Text>
+          <TouchableOpacity
+            style={[
+              styles.toggleOptionFull,
+              pmr && styles.toggleOptionSelected,
+            ]}
+            onPress={() => setPmr(!pmr)}
+          >
+            <View style={styles.toggleOptionContent}>
+              <Ionicons
+                name="body"
+                size={16}
+                color={pmr ? "#fff" : colors.textMuted}
+              />
+              <Text style={[
+                styles.toggleText,
+                pmr && styles.toggleTextSelected,
+              ]}>
+                Accès PMR (Fauteuil roulant)
+              </Text>
+            </View>
+            {pmr && <Ionicons name="checkmark-circle" size={16} color="#fff" />}
+          </TouchableOpacity>
+        </View>
 
         {/* Section Régime */}
         <View style={styles.section}>
@@ -1273,5 +1304,31 @@ const styles = StyleSheet.create({
   modalCloseBtnText: {
     color: colors.textMuted,
     fontWeight: "600",
+  },
+  toggleOptionFull: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: colors.grayeSurface,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: 16,
+    marginBottom: 8,
+  },
+  toggleOptionSelected: {
+    backgroundColor: colors.grayePurple,
+  },
+  toggleOptionContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  toggleText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: colors.textMuted,
+  },
+  toggleTextSelected: {
+    color: "#fff",
   },
 });

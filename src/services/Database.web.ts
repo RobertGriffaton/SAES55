@@ -20,6 +20,7 @@ const staticData = (Array.isArray(rawData) ? rawData : (rawData.restaurants || [
   vegetarian: r.diet?.vegetarian ? 1 : (r.vegetarian === 'yes' ? 1 : 0),
   vegan: r.diet?.vegan ? 1 : (r.vegan === 'yes' ? 1 : 0),
   takeaway: r.options?.takeaway ? 1 : (r.takeaway === 'yes' ? 1 : 0),
+  wheelchair: r.accessibility?.wheelchair ? 1 : (r.wheelchair === 'yes' ? 1 : 0),
 }));
 
 // --- API PUBLIQUE ---
@@ -56,6 +57,7 @@ export const searchRestaurants = async (prefs: UserPreferences) => {
     if (prefs.diet === 'Végétarien' && r.vegetarian !== 1) return false;
     if (prefs.diet === 'Végan' && r.vegan !== 1) return false;
     if (prefs.options.emporter && r.takeaway !== 1) return false;
+    if (prefs.options.pmr && r.wheelchair !== 1) return false;
     return true;
   });
 

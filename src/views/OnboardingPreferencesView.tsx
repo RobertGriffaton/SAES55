@@ -1,30 +1,30 @@
+import { Ionicons } from "@expo/vector-icons";
 import React, { useState } from "react";
 import {
-  Alert,
-  Image,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-  Dimensions,
+    Alert,
+    Dimensions,
+    Image,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
 import { setOnboardingDone } from "../controllers/PreferencesController";
 import {
-  createProfile,
-  updateProfile,
-  setActiveProfile,
+    createProfile,
+    setActiveProfile,
+    updateProfile,
 } from "../controllers/ProfileController";
 import {
-  Cuisine,
-  Diet,
-  DEFAULT_PREFERENCES,
-  AVATARS,
-  AvatarId,
+    AVATARS,
+    AvatarId,
+    Cuisine,
+    DEFAULT_PREFERENCES,
+    Diet,
 } from "../models/PreferencesModel";
-import { colors, spacing } from "../styles/theme";
+import { colors } from "../styles/theme";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -92,6 +92,7 @@ export function OnboardingPreferencesView({ onDone }: { onDone: () => void }) {
   const [selectedCuisines, setSelectedCuisines] = useState<Cuisine[]>([]);
   const [surPlace, setSurPlace] = useState(true);
   const [emporter, setEmporter] = useState(false);
+  const [pmr, setPmr] = useState(false);
   const [selectedDiet, setSelectedDiet] = useState<Diet>("Aucune");
 
   // Toggle cuisine
@@ -124,6 +125,7 @@ export function OnboardingPreferencesView({ onDone }: { onDone: () => void }) {
             surPlace: surPlace,
             emporter: emporter,
             livraison: false,
+            pmr: pmr,
           },
         },
       });
@@ -367,6 +369,39 @@ export function OnboardingPreferencesView({ onDone }: { onDone: () => void }) {
               </Text>
             </TouchableOpacity>
           </View>
+        </View>
+
+        {/* Accessibilité */}
+        <View style={styles.settingsCard}>
+          <View style={styles.settingsCardHeader}>
+            <View style={[styles.settingsIcon, { backgroundColor: "#E3F2FD" }]}>
+              <Ionicons name="accessibility" size={14} color="#2196F3" />
+            </View>
+            <Text style={styles.settingsCardTitle}>Accessibilité</Text>
+          </View>
+
+          <TouchableOpacity
+            style={[
+              styles.toggleOptionFull,
+              pmr && styles.toggleOptionSelected,
+            ]}
+            onPress={() => setPmr(!pmr)}
+          >
+            <View style={styles.toggleOptionContent}>
+              <Ionicons
+                name="body"
+                size={16}
+                color={pmr ? "#fff" : colors.textMuted}
+              />
+              <Text style={[
+                styles.toggleText,
+                pmr && styles.toggleTextSelected,
+              ]}>
+                Accès PMR (Fauteuil roulant)
+              </Text>
+            </View>
+            {pmr && <Ionicons name="checkmark-circle" size={16} color="#fff" />}
+          </TouchableOpacity>
         </View>
 
         {/* Contraintes */}
@@ -791,6 +826,22 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 12,
     elevation: 2,
+  },
+  toggleOptionFull: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: colors.background,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: "transparent",
+  },
+  toggleOptionContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
   cuisineCardSelected: {
     backgroundColor: colors.grayePurple,

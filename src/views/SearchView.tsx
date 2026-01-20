@@ -1,29 +1,27 @@
-import React, { useEffect, useMemo, useState, useCallback, useRef } from "react";
+import { Ionicons } from "@expo/vector-icons";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  View,
-  Text,
-  StyleSheet,
-  FlatList,
   ActivityIndicator,
-  TouchableOpacity,
-  TextInput,
+  FlatList,
+  Image,
   Keyboard,
+  Platform,
   RefreshControl,
   ScrollView,
-  Platform,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
   useWindowDimensions,
-  Image,
-  Animated,
+  View
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing } from "../styles/theme";
 // Import de l'algorithme intelligent
-import { getAdaptiveRecommendations, clearRecommendationCache, checkAndResetRefreshFlag } from "../services/RecommendationService";
+import { checkAndResetRefreshFlag, clearRecommendationCache, getAdaptiveRecommendations } from "../services/RecommendationService";
 // On garde getAllRestaurants pour les suggestions de recherche si besoin, 
 // mais le chargement principal se fait via l'algo.
-import { getAllRestaurants } from "../services/Database";
-import { RestaurantCard } from "../components/RestaurantCard";
 import * as Location from "expo-location";
+import { RestaurantCard } from "../components/RestaurantCard";
 import { getActiveProfile } from "../controllers/ProfileController";
 import { AvatarId } from "../models/PreferencesModel";
 
@@ -47,6 +45,7 @@ export interface SearchSessionState {
   selectedCategories: string[];
   takeawayOnly: boolean;
   onSiteOnly: boolean;
+  pmrOnly: boolean;
 }
 
 interface SearchViewProps {
@@ -132,6 +131,7 @@ export const SearchView = ({ onRestaurantSelect, savedState, onSaveState, isActi
   const [selectedCategories, setSelectedCategories] = useState<string[]>(savedState?.selectedCategories || []);
   const [takeawayOnly, setTakeawayOnly] = useState(savedState?.takeawayOnly || false);
   const [onSiteOnly, setOnSiteOnly] = useState(savedState?.onSiteOnly || false);
+  const [pmrOnly, setPmrOnly] = useState(savedState?.pmrOnly || false);
 
   // États de localisation restaurés
   const [useLocationFilter, setUseLocationFilter] = useState(savedState?.useLocationFilter || false);
@@ -162,10 +162,11 @@ export const SearchView = ({ onRestaurantSelect, savedState, onSaveState, isActi
         searchText: searchText,
         selectedCategories: selectedCategories,
         takeawayOnly: takeawayOnly,
-        onSiteOnly: onSiteOnly
+        onSiteOnly: onSiteOnly,
+        pmrOnly: pmrOnly
       });
     }
-  }, [allRestaurants, userLocation, locationName, useLocationFilter, radiusKm, searchText, selectedCategories, takeawayOnly, onSiteOnly]);
+  }, [allRestaurants, userLocation, locationName, useLocationFilter, radiusKm, searchText, selectedCategories, takeawayOnly, onSiteOnly, pmrOnly]);
 
   // --- CHARGEMENT INTELLIGENT ---
   useEffect(() => {
@@ -393,7 +394,13 @@ export const SearchView = ({ onRestaurantSelect, savedState, onSaveState, isActi
       if (useLocationFilter) {
         if (!userLocation || typeof resto.lat !== "number" || typeof resto.lon !== "number") return false;
         const distance = getDistanceFromLatLonInKm(userLocation.lat, userLocation.lon, resto.lat, resto.lon);
-        return distance <= radiusKm;
+        if (distance > radiusKm) return false;
+      }
+
+      // 5. PMR
+      if (pmrOnly) {
+        const isAccessible = resto.wheelchair === 1 || resto.wheelchair === true || resto.wheelchair === "yes";
+        if (!isAccessible) return false;
       }
       return true;
     })
@@ -414,7 +421,7 @@ export const SearchView = ({ onRestaurantSelect, savedState, onSaveState, isActi
         // Tri par score (toujours appliqué)
         return (b.score || 0) - (a.score || 0);
       });
-  }, [allRestaurants, selectedCategories, takeawayOnly, onSiteOnly, useLocationFilter, userLocation, radiusKm, isSearching, searchText]);
+  }, [allRestaurants, selectedCategories, takeawayOnly, onSiteOnly, pmrOnly, useLocationFilter, userLocation, radiusKm, isSearching, searchText]);
 
   const paginatedData = useMemo(() => {
     const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
@@ -717,6 +724,7 @@ export const SearchView = ({ onRestaurantSelect, savedState, onSaveState, isActi
             <View style={styles.chipsRow}>
               <TouchableOpacity style={[styles.chip, takeawayOnly && styles.chipActive]} onPress={() => setTakeawayOnly((v) => !v)}><Ionicons name="bag-handle-outline" size={14} color={takeawayOnly ? "#fff" : colors.text} style={{ marginRight: 6 }} /><Text style={[styles.chipText, takeawayOnly && styles.chipTextActive]}>À emporter</Text></TouchableOpacity>
               <TouchableOpacity style={[styles.chip, onSiteOnly && styles.chipActive]} onPress={() => setOnSiteOnly((v) => !v)}><Ionicons name="restaurant-outline" size={14} color={onSiteOnly ? "#fff" : colors.text} style={{ marginRight: 6 }} /><Text style={[styles.chipText, onSiteOnly && styles.chipTextActive]}>Sur place</Text></TouchableOpacity>
+              <TouchableOpacity style={[styles.chip, pmrOnly && styles.chipActive]} onPress={() => setPmrOnly((v) => !v)}><Ionicons name="body-outline" size={14} color={pmrOnly ? "#fff" : colors.text} style={{ marginRight: 6 }} /><Text style={[styles.chipText, pmrOnly && styles.chipTextActive]}>Accès PMR</Text></TouchableOpacity>
             </View>
           </View>
           {locationError ? <Text style={styles.errorText}>{locationError}</Text> : null}

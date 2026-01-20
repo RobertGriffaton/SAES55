@@ -32,7 +32,10 @@ export const initDatabase = async () => {
         phone TEXT,
         opening_hours TEXT,
         website TEXT,
-        price_range TEXT
+        opening_hours TEXT,
+        website TEXT,
+        price_range TEXT,
+        wheelchair INTEGER
       );
     `);
 
@@ -99,10 +102,11 @@ const insertDataFromJSON = async () => {
         const isVeg = (r.diet && r.diet.vegetarian) ? 1 : (r.vegetarian === "yes" ? 1 : 0);
         const isVegan = (r.diet && r.diet.vegan) ? 1 : (r.vegan === "yes" ? 1 : 0);
         const isTakeaway = (r.options && r.options.takeaway) ? 1 : (r.takeaway === "yes" ? 1 : 0);
+        const isWheelchair = (r.accessibility && r.accessibility.wheelchair) ? 1 : (r.wheelchair === "yes" ? 1 : 0);
 
         await db.runAsync(
-          `INSERT INTO restaurants (name, type, cuisines, lat, lon, city, vegetarian, vegan, takeaway, phone, opening_hours, website, price_range) 
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO restaurants (name, type, cuisines, lat, lon, city, vegetarian, vegan, takeaway, phone, opening_hours, website, price_range, wheelchair) 
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             r.name || "Inconnu",
             r.type || "restaurant",
@@ -116,7 +120,10 @@ const insertDataFromJSON = async () => {
             r.phone || "",
             r.opening_hours || "",
             r.website || r.url || "",
-            typeof r.price_range === 'string' ? r.price_range : (r.price_range ? '€€' : '')
+            r.opening_hours || "",
+            r.website || r.url || "",
+            typeof r.price_range === 'string' ? r.price_range : (r.price_range ? '€€' : ''),
+            isWheelchair
           ]
         );
       }
@@ -146,6 +153,8 @@ export const searchRestaurants = async (prefs: UserPreferences) => {
 
   // Filtre Options
   if (prefs.options.emporter) query += " AND takeaway = 1";
+  // Filtre PMR
+  if (prefs.options.pmr) query += " AND wheelchair = 1";
 
   query += " LIMIT 50"; // Limite pour la performance
 

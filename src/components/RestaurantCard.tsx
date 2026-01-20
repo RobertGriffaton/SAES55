@@ -75,6 +75,13 @@ export const RestaurantCard = ({ restaurant, onPress }: RestaurantCardProps) => 
               <Text style={[styles.badgeText, { color: "orange" }]}>Emporter</Text>
             </View>
           )}
+
+          {(restaurant.wheelchair === "yes" || restaurant.wheelchair === 1) && (
+            <View style={[styles.badge, { backgroundColor: "#F3F4F6" }]}>
+              <Ionicons name="accessibility" size={12} color="#4B5563" />
+              <Text style={[styles.badgeText, { color: "#4B5563" }]}>PMR</Text>
+            </View>
+          )}
         </View>
       </View>
     </TouchableOpacity>
