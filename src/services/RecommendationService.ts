@@ -183,11 +183,24 @@ export const getAdaptiveRecommendations = async (
 
         // A. Régime Alimentaire (Critique)
         if (prefs.diet && prefs.diet !== "Aucune") {
-            const isVeggie = resto.vegetarian === 1 || resto.vegetarian === true || tags.includes("vegan") || tags.includes("vegetarien");
-            if ((prefs.diet === "Végétarien" || prefs.diet === "Végan") && !isVeggie) {
-                score -= PENALTY_DIET_MISMATCH;
-                details.push("Incompatible");
-                isExplorable = false; // On n'explore jamais un truc incompatible
+            if (prefs.diet === "Végan") {
+                // Végan : uniquement les restaurants végans
+                const isVegan = resto.vegan === 1 || resto.vegan === true || tags.includes("vegan");
+                if (!isVegan) {
+                    score -= PENALTY_DIET_MISMATCH;
+                    details.push("Incompatible");
+                    isExplorable = false;
+                }
+            } else if (prefs.diet === "Végétarien") {
+                // Végétarien : restaurants végétariens OU végans
+                const isVeggie = resto.vegetarian === 1 || resto.vegetarian === true ||
+                    resto.vegan === 1 || resto.vegan === true ||
+                    tags.includes("vegan") || tags.includes("vegetarien");
+                if (!isVeggie) {
+                    score -= PENALTY_DIET_MISMATCH;
+                    details.push("Incompatible");
+                    isExplorable = false;
+                }
             }
         }
 
