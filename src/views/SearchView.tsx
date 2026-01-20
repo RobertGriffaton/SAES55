@@ -666,8 +666,8 @@ export const SearchView = ({ onRestaurantSelect, savedState, onSaveState, isActi
         </View>
       )}
 
-      {/* Filters Panel - Caché pendant le scroll */}
-      {showFilters && (!isSearching || searchText.length < 3) && !isScrolling && (
+      {/* Filters Panel */}
+      {showFilters && (!isSearching || searchText.length < 3) && (
         <View style={styles.filtersContainer}>
           <View style={styles.filterRow}>
             <Text style={styles.filterLabel}>Rayon</Text>
