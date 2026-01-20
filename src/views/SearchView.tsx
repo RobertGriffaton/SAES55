@@ -374,15 +374,17 @@ export const SearchView = ({ onRestaurantSelect, savedState, onSaveState, isActi
         if (!matchesCategory) return false;
       }
 
-      // 3. Options
+      // 3. Options - Filtre strict pour "À emporter"
       const takeawayValue = resto.takeaway;
+
+      // On vérifie uniquement si le restaurant a explicitement le badge "à emporter"
       const hasTakeaway =
         takeawayValue === 1 ||
         takeawayValue === true ||
-        (typeof takeawayValue === "string" && ["yes", "only", "true"].includes(takeawayValue.toLowerCase())) ||
-        typeValue === "fast_food";
+        (typeof takeawayValue === "string" && ["yes", "only", "true"].includes(takeawayValue.toLowerCase()));
 
-      if (takeawayOnly && !hasTakeaway) return false;
+      // Note: on ne filtre plus ici, le tri se fera plus bas
+      // if (takeawayOnly && !hasTakeaway) return false;
 
       const offersOnSite = typeof takeawayValue === "string" ? takeawayValue.toLowerCase() !== "only" : true;
       if (onSiteOnly && !offersOnSite) return false;
@@ -394,7 +396,24 @@ export const SearchView = ({ onRestaurantSelect, savedState, onSaveState, isActi
         return distance <= radiusKm;
       }
       return true;
-    });
+    })
+      // Tri : si le filtre "à emporter" est activé, restaurants "à emporter" en premier
+      .sort((a, b) => {
+        // Si le filtre "à emporter" est activé
+        if (takeawayOnly) {
+          const aTakeaway = a.takeaway === 1 || a.takeaway === true ||
+            (typeof a.takeaway === "string" && ["yes", "only", "true"].includes(a.takeaway.toLowerCase()));
+          const bTakeaway = b.takeaway === 1 || b.takeaway === true ||
+            (typeof b.takeaway === "string" && ["yes", "only", "true"].includes(b.takeaway.toLowerCase()));
+
+          // Si un a le badge et pas l'autre, celui avec le badge passe en premier
+          if (aTakeaway && !bTakeaway) return -1;
+          if (!aTakeaway && bTakeaway) return 1;
+        }
+
+        // Tri par score (toujours appliqué)
+        return (b.score || 0) - (a.score || 0);
+      });
   }, [allRestaurants, selectedCategories, takeawayOnly, onSiteOnly, useLocationFilter, userLocation, radiusKm, isSearching, searchText]);
 
   const paginatedData = useMemo(() => {
