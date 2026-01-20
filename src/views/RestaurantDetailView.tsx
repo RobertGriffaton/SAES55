@@ -57,10 +57,20 @@ export const RestaurantDetailView = ({ restaurant, onBack }: RestaurantDetailPro
     ? (Array.isArray(restaurant.cuisine) ? restaurant.cuisine.join(", ") : String(restaurant.cuisines).replace(/,/g, ", "))
     : (restaurant.type ? String(restaurant.type).replace(/_/g, " ") : "Cuisine variée");
 
-  // Calcul du score de match (simulé basé sur les données)
+  // Calcul du score de match (basé sur l'algorithme de recommandation)
   const matchScore = useMemo(() => {
-    if (restaurant.score) return Math.round(restaurant.score);
-    return Math.floor(Math.random() * 20) + 80; // 80-100%
+    // Utiliser le pourcentage normalisé si disponible
+    if (restaurant.matchPercentage !== undefined && restaurant.matchPercentage !== null) {
+      return restaurant.matchPercentage;
+    }
+    // Fallback: si on a un score brut, on le convertit approximativement
+    // (les scores typiques vont de ~50 à ~200, on normalise à 60-95%)
+    if (restaurant.score) {
+      const normalized = Math.min(95, Math.max(60, 60 + (restaurant.score / 200) * 35));
+      return Math.round(normalized);
+    }
+    // Dernier recours: valeur par défaut raisonnable
+    return 75;
   }, [restaurant]);
 
   const openLink = async (type: 'tel' | 'web' | 'map') => {

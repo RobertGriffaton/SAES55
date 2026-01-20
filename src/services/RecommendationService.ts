@@ -358,6 +358,29 @@ export const getAdaptiveRecommendations = async (
             debugInfo: Array.isArray(r.debugInfo) ? r.debugInfo.join(', ') : r.debugInfo
         }));
 
+    // 8. 📊 NORMALISATION DU SCORE EN POURCENTAGE DE MATCH (0-100%)
+    if (finalResult.length > 0) {
+        // Trouver les scores min et max
+        const scores = finalResult.map((r: any) => r.score);
+        const minScore = Math.min(...scores);
+        const maxScore = Math.max(...scores);
+
+        // Normaliser chaque score en pourcentage
+        finalResult.forEach((resto: any) => {
+            if (maxScore === minScore) {
+                // Si tous les scores sont identiques, donner 100% à tous
+                resto.matchPercentage = 100;
+            } else {
+                // Normalisation linéaire: (score - min) / (max - min) * 100
+                const normalized = ((resto.score - minScore) / (maxScore - minScore)) * 100;
+                // Arrondir et s'assurer que c'est entre 0 et 100
+                resto.matchPercentage = Math.round(Math.max(0, Math.min(100, normalized)));
+            }
+        });
+
+        console.log(`[Normalisation] Scores: min=${minScore.toFixed(2)}, max=${maxScore.toFixed(2)}`);
+    }
+
     // 📊 LOGS DÉTAILLÉS DU CLASSEMENT
     console.log("\n========================================");
     console.log("📊 CLASSEMENT DES RESTAURANTS (Top 50)");
