@@ -90,8 +90,8 @@ export function OnboardingPreferencesView({ onDone }: { onDone: () => void }) {
   const [username, setUsername] = useState("");
   const [selectedAvatar, setSelectedAvatar] = useState<AvatarId>("burger");
   const [selectedCuisines, setSelectedCuisines] = useState<Cuisine[]>([]);
-  const [surPlace, setSurPlace] = useState(false);
-  const [emporter, setEmporter] = useState(true);
+  const [surPlace, setSurPlace] = useState(true);
+  const [emporter, setEmporter] = useState(false);
   const [selectedDiet, setSelectedDiet] = useState<Diet>("Aucune");
 
   // Toggle cuisine
@@ -198,7 +198,7 @@ export function OnboardingPreferencesView({ onDone }: { onDone: () => void }) {
 
         {/* Input prénom */}
         <View style={styles.inputSection}>
-          <Text style={styles.inputLabel}>TON BLAZE</Text>
+          <Text style={styles.inputLabel}>PSEUDONYME</Text>
           <View style={styles.inputContainer}>
             <TextInput
               style={styles.input}
@@ -210,7 +210,7 @@ export function OnboardingPreferencesView({ onDone }: { onDone: () => void }) {
             <Ionicons name="person" size={20} color={colors.textMuted} style={styles.inputIcon} />
           </View>
           <Text style={styles.inputHint}>
-            Ce nom sera utilisé pour tes avis et ton profil Graye.{"\n"}
+            Ce nom sera utilisé pour ton profil Graye.{"\n"}
             Tu pourras créer d'autres profils plus tard.
           </Text>
         </View>
@@ -489,10 +489,8 @@ export function OnboardingPreferencesView({ onDone }: { onDone: () => void }) {
             </View>
           </View>
 
-          {/* ID zone */}
-          <View style={styles.cardBarcode}>
-            <Text style={styles.cardId}>#ID-2025</Text>
-          </View>
+          {/* Espace décoratif */}
+          <View style={styles.cardBarcode} />
         </View>
 
         {/* Déco dots */}
